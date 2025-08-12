@@ -1,0 +1,58 @@
+# Ghostwarden Configuration
+# This is an example configuration file showing all available options
+
+[pve]
+# Proxmox VE API configuration
+api_url = "https://proxmox.example.com:8006/api2/json"
+token_id = "root@pam!ghostwarden"
+token_secret = "your-secret-token-here"
+ipset_name = "ghostwarden-banned"
+# node_name = "node1"  # Optional: specific node name
+verify_ssl = true
+
+[crowdsec]
+# CrowdSec LAPI configuration (optional)
+lapi_url = "http://crowdsec.example.com:8080"
+api_key = "your-crowdsec-api-key"
+# machine_id = "ghostwarden-machine-id"  # Optional: will generate if not provided
+scenarios = ["crowdsecurity/ssh-bf", "crowdsecurity/http-bf"]
+poll_interval_seconds = 30
+
+[wazuh]
+# Wazuh API configuration (optional)
+api_url = "https://wazuh.example.com:55000"
+api_user = "ghostwarden"
+api_pass = "your-wazuh-password"
+rules = ["5710", "5712"]  # SSH brute force rules
+verify_ssl = true
+
+[nftables]
+# Local nftables configuration
+set_name = "ghostwarden-banned"
+table_name = "inet"
+chain_name = "input"
+enabled = true
+
+# Global whitelist (IPs that will never be banned)
+whitelist = [
+    "127.0.0.1",
+    "192.168.1.0/24",
+    "10.0.0.0/8"
+]
+
+# Ban settings
+default_ban_duration_seconds = 3600  # 1 hour
+
+# Logging
+log_level = "info"  # debug, info, warn, error
+
+[daemon]
+# Daemon settings
+sync_interval_seconds = 60
+max_retries = 3
+bind_address = "127.0.0.1"
+bind_port = 9090  # Metrics port (traditional Prometheus port)
+metrics_enabled = true  # Enable Prometheus metrics endpoint
+# When enabled, metrics will be available at:
+# - http://127.0.0.1:9090/metrics (Prometheus metrics)
+# - http://127.0.0.1:9090/health  (Health check)
