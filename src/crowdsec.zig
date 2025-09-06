@@ -65,12 +65,9 @@ pub const CrowdSecClient = struct {
         defer self.allocator.free(url);
 
         const auth = Http.HttpClient.AuthHeader{ .api_key = .{ .key = "X-Api-Key", .value = self.config.api_key } };
-        var response = self.http_client.get(url, auth) catch |err| switch (err) {
-            error.NetworkError => {
-                std.log.err("Failed to connect to CrowdSec LAPI at {s}", .{self.config.lapi_url});
-                return error.NetworkError;
-            },
-            else => return err,
+        var response = self.http_client.get(url, auth) catch |err| {
+            std.log.err("Failed to connect to CrowdSec LAPI at {s}: {}", .{ self.config.lapi_url, err });
+            return err;
         };
         defer response.deinit();
 
@@ -122,8 +119,9 @@ pub const CrowdSecClient = struct {
     }
 
     fn parseDecisions(self: *Self, decisions: []std.json.Value) ![]Decision {
-        var result = try std.ArrayList(Decision).initCapacity(self.allocator, decisions.len);
-        defer result.deinit();
+        var result: std.ArrayList(Decision) = .empty;
+        try result.ensureTotalCapacity(self.allocator, decisions.len);
+        defer result.deinit(self.allocator);
 
         for (decisions) |decision_value| {
             if (decision_value != .object) continue;
@@ -142,10 +140,10 @@ pub const CrowdSecClient = struct {
                 .updated_at = if (obj.get("updated_at")) |v| try self.allocator.dupe(u8, v.string) else "",
             };
 
-            try result.append(decision);
+            try result.append(self.allocator, decision);
         }
 
-        return result.toOwnedSlice();
+        return result.toOwnedSlice(self.allocator);
     }
 
     pub fn heartbeat(self: *Self) !void {
@@ -156,12 +154,9 @@ pub const CrowdSecClient = struct {
         defer self.allocator.free(body);
 
         const auth = Http.HttpClient.AuthHeader{ .api_key = .{ .key = "X-Api-Key", .value = self.config.api_key } };
-        var response = self.http_client.post(url, body, auth) catch |err| switch (err) {
-            error.NetworkError => {
-                std.log.warn("CrowdSec heartbeat failed: network error", .{});
-                return;
-            },
-            else => return err,
+        var response = self.http_client.post(url, body, auth) catch |err| {
+            std.log.warn("CrowdSec heartbeat failed: {}", .{err});
+            return;
         };
         defer response.deinit();
 

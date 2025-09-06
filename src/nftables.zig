@@ -235,17 +235,17 @@ pub const NftablesClient = struct {
             return error.NftablesError;
         }
 
-        var ips = std.ArrayList([]const u8).init(self.allocator);
+        var ips: std.ArrayList([]const u8) = .empty;
         var lines = std.mem.splitSequence(u8, result.stdout, "\n");
         while (lines.next()) |line| {
             const trimmed = std.mem.trim(u8, line, " \t\r\n");
             if (trimmed.len > 0) {
-                try ips.append(try self.allocator.dupe(u8, trimmed));
+                try ips.append(self.allocator, try self.allocator.dupe(u8, trimmed));
             }
         }
 
         self.allocator.free(result.stdout);
-        return ips.toOwnedSlice();
+        return ips.toOwnedSlice(self.allocator);
     }
 
     pub fn flushSet(self: Self) !void {

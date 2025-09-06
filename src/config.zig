@@ -68,7 +68,9 @@ pub const Config = struct {
         };
         defer file.close();
 
-        const content = try file.readToEndAlloc(allocator, 1024 * 1024);
+        const file_size = try file.getEndPos();
+        const content = try allocator.alloc(u8, file_size);
+        _ = try file.readAll(content);
         defer allocator.free(content);
 
         return parseToml(allocator, content);

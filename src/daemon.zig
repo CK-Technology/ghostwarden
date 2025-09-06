@@ -106,7 +106,7 @@ pub const GhostWardenDaemon = struct {
             }
 
             // Sleep for 1 second before next iteration
-            std.time.sleep(1 * std.time.ns_per_s);
+            std.Thread.sleep(1 * std.time.ns_per_s);
         }
     }
 
@@ -143,10 +143,10 @@ pub const GhostWardenDaemon = struct {
     fn syncBans(self: *Self) !void {
         std.log.debug("Starting ban synchronization...", .{});
 
-        var ips_to_ban = std.ArrayList([]const u8).init(self.allocator);
-        defer ips_to_ban.deinit();
-        var ips_to_unban = std.ArrayList([]const u8).init(self.allocator);
-        defer ips_to_unban.deinit();
+        var ips_to_ban: std.ArrayList([]const u8) = .empty;
+        defer ips_to_ban.deinit(self.allocator);
+        var ips_to_unban: std.ArrayList([]const u8) = .empty;
+        defer ips_to_unban.deinit(self.allocator);
 
         // Collect decisions from CrowdSec
         if (self.crowdsec_client) |*client| {
@@ -166,7 +166,7 @@ pub const GhostWardenDaemon = struct {
                     
                     if (std.mem.eql(u8, decision.type, "ban") and std.mem.eql(u8, decision.scope, "Ip")) {
                         if (!self.isWhitelisted(decision.value)) {
-                            try ips_to_ban.append(try self.allocator.dupe(u8, decision.value));
+                            try ips_to_ban.append(self.allocator, try self.allocator.dupe(u8, decision.value));
                             std.log.info("CrowdSec ban: {s} (scenario: {s})", .{ decision.value, decision.scenario });
                             if (self.metrics_collector) |*collector| {
                                 collector.recordBan();
@@ -179,7 +179,7 @@ pub const GhostWardenDaemon = struct {
             if (decisions.deleted) |deleted_decisions| {
                 for (deleted_decisions) |decision| {
                     if (std.mem.eql(u8, decision.type, "ban") and std.mem.eql(u8, decision.scope, "Ip")) {
-                        try ips_to_unban.append(try self.allocator.dupe(u8, decision.value));
+                        try ips_to_unban.append(self.allocator, try self.allocator.dupe(u8, decision.value));
                         std.log.info("CrowdSec unban: {s}", .{decision.value});
                         if (self.metrics_collector) |*collector| {
                             collector.recordUnban();
@@ -215,7 +215,7 @@ pub const GhostWardenDaemon = struct {
                 switch (action.action) {
                     .ban => {
                         if (!self.isWhitelisted(action.source_ip)) {
-                            try ips_to_ban.append(try self.allocator.dupe(u8, action.source_ip));
+                            try ips_to_ban.append(self.allocator, try self.allocator.dupe(u8, action.source_ip));
                             std.log.info("Wazuh ban: {s} (rule: {})", .{ action.source_ip, action.rule_id });
                             if (self.metrics_collector) |*collector| {
                                 collector.recordBan();
@@ -223,7 +223,7 @@ pub const GhostWardenDaemon = struct {
                         }
                     },
                     .allow => {
-                        try ips_to_unban.append(try self.allocator.dupe(u8, action.source_ip));
+                        try ips_to_unban.append(self.allocator, try self.allocator.dupe(u8, action.source_ip));
                         std.log.info("Wazuh unban: {s}", .{action.source_ip});
                         if (self.metrics_collector) |*collector| {
                             collector.recordUnban();

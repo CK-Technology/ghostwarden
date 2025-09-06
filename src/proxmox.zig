@@ -53,12 +53,9 @@ pub const ProxmoxClient = struct {
         defer self.allocator.free(url);
 
         const auth = self.getAuthHeader();
-        var response = self.http_client.get(url, auth) catch |err| switch (err) {
-            error.NetworkError => {
-                std.log.err("Failed to connect to Proxmox VE API at {s}", .{self.config.api_url});
-                return error.NetworkError;
-            },
-            else => return err,
+        var response = self.http_client.get(url, auth) catch |err| {
+            std.log.err("Failed to connect to Proxmox VE API at {s}: {}", .{ self.config.api_url, err });
+            return err;
         };
         defer response.deinit();
 
@@ -123,7 +120,7 @@ pub const ProxmoxClient = struct {
             try result.append(entry);
         }
 
-        return result.toOwnedSlice();
+        return result.toOwnedSlice(self.allocator);
     }
 
     pub fn createIpSet(self: *Self, ipset_name: []const u8) !IpSet {
@@ -144,12 +141,9 @@ pub const ProxmoxClient = struct {
             .body = body,
             .auth = auth,
             .headers = headers,
-        }) catch |err| switch (err) {
-            error.NetworkError => {
-                std.log.err("Failed to create IPSet in Proxmox VE", .{});
-                return error.NetworkError;
-            },
-            else => return err,
+        }) catch |err| {
+            std.log.err("Failed to create IPSet in Proxmox VE: {}", .{err});
+            return err;
         };
         defer response.deinit();
 
@@ -176,15 +170,10 @@ pub const ProxmoxClient = struct {
         const url = try std.fmt.allocPrint(self.allocator, "{s}/cluster/firewall/ipset/{s}", .{ self.config.api_url, ipset_name });
         defer self.allocator.free(url);
 
-        var body_builder = std.ArrayList(u8).init(self.allocator);
-        defer body_builder.deinit();
-
-        try body_builder.writer().print("cidr={s}", .{ip});
-        if (comment) |c| {
-            try body_builder.writer().print("&comment={s}", .{c});
-        }
-
-        const body = try body_builder.toOwnedSlice();
+        const body = if (comment) |c|
+            try std.fmt.allocPrint(self.allocator, "cidr={s}&comment={s}", .{ ip, c })
+        else
+            try std.fmt.allocPrint(self.allocator, "cidr={s}", .{ip});
         defer self.allocator.free(body);
 
         var headers = std.StringHashMap([]const u8).init(self.allocator);
@@ -198,12 +187,9 @@ pub const ProxmoxClient = struct {
             .body = body,
             .auth = auth,
             .headers = headers,
-        }) catch |err| switch (err) {
-            error.NetworkError => {
-                std.log.err("Failed to add IP {s} to IPSet {s}", .{ ip, ipset_name });
-                return error.NetworkError;
-            },
-            else => return err,
+        }) catch |err| {
+            std.log.err("Failed to add IP {s} to IPSet {s}: {}", .{ ip, ipset_name, err });
+            return err;
         };
         defer response.deinit();
 
@@ -233,12 +219,9 @@ pub const ProxmoxClient = struct {
         defer self.allocator.free(url);
 
         const auth = self.getAuthHeader();
-        var response = self.http_client.delete(url, auth) catch |err| switch (err) {
-            error.NetworkError => {
-                std.log.err("Failed to remove IP {s} from IPSet {s}", .{ ip, ipset_name });
-                return error.NetworkError;
-            },
-            else => return err,
+        var response = self.http_client.delete(url, auth) catch |err| {
+            std.log.err("Failed to remove IP {s} from IPSet {s}: {}", .{ ip, ipset_name, err });
+            return err;
         };
         defer response.deinit();
 
@@ -284,12 +267,9 @@ pub const ProxmoxClient = struct {
         defer self.allocator.free(url);
 
         const auth = self.getAuthHeader();
-        var response = self.http_client.get(url, auth) catch |err| switch (err) {
-            error.NetworkError => {
-                std.log.err("Failed to connect to Proxmox VE API at {s}", .{self.config.api_url});
-                return error.NetworkError;
-            },
-            else => return err,
+        var response = self.http_client.get(url, auth) catch |err| {
+            std.log.err("Failed to connect to Proxmox VE API at {s}: {}", .{ self.config.api_url, err });
+            return err;
         };
         defer response.deinit();
 
@@ -309,19 +289,19 @@ pub const ProxmoxClient = struct {
     }
 
     fn urlEncode(self: *Self, input: []const u8) ![]const u8 {
-        var result = std.ArrayList(u8).init(self.allocator);
-        defer result.deinit();
+        var result: std.ArrayList(u8) = .empty;
+        defer result.deinit(self.allocator);
 
         for (input) |c| {
             switch (c) {
-                '/' => try result.appendSlice("%2F"),
-                ':' => try result.appendSlice("%3A"),
-                ' ' => try result.appendSlice("%20"),
-                else => try result.append(c),
+                '/' => try result.appendSlice(self.allocator, "%2F"),
+                ':' => try result.appendSlice(self.allocator, "%3A"),
+                ' ' => try result.appendSlice(self.allocator, "%20"),
+                else => try result.append(self.allocator, c),
             }
         }
 
-        return result.toOwnedSlice();
+        return result.toOwnedSlice(self.allocator);
     }
 
     pub fn validateConfig(config: Config.ProxmoxConfig) !void {

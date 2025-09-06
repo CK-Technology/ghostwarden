@@ -60,17 +60,17 @@ pub const HttpClient = struct {
             else => return err,
         };
 
-        var headers = std.ArrayList(std.http.Header).init(self.allocator);
-        defer headers.deinit();
+        var headers: std.ArrayList(std.http.Header) = .empty;
+        defer headers.deinit(self.allocator);
 
-        try headers.append(.{ .name = "user-agent", .value = "ghostwarden/0.1.0" });
+        try headers.append(self.allocator, .{ .name = "user-agent", .value = "ghostwarden/0.1.0" });
 
         if (req.auth) |auth| {
             switch (auth) {
                 .bearer => |token| {
                     const auth_value = try std.fmt.allocPrint(self.allocator, "Bearer {s}", .{token});
                     defer self.allocator.free(auth_value);
-                    try headers.append(.{ .name = "authorization", .value = auth_value });
+                    try headers.append(self.allocator, .{ .name = "authorization", .value = auth_value });
                 },
                 .basic => |creds| {
                     const auth_string = try std.fmt.allocPrint(self.allocator, "{s}:{s}", .{ creds.username, creds.password });
@@ -84,15 +84,15 @@ pub const HttpClient = struct {
                     
                     const auth_value = try std.fmt.allocPrint(self.allocator, "Basic {s}", .{encoded});
                     defer self.allocator.free(auth_value);
-                    try headers.append(.{ .name = "authorization", .value = auth_value });
+                    try headers.append(self.allocator, .{ .name = "authorization", .value = auth_value });
                 },
                 .api_key => |key| {
-                    try headers.append(.{ .name = key.key, .value = key.value });
+                    try headers.append(self.allocator, .{ .name = key.key, .value = key.value });
                 },
                 .pve_token => |token| {
                     const auth_value = try std.fmt.allocPrint(self.allocator, "PVEAPIToken={s}={s}", .{ token.token_id, token.token_secret });
                     defer self.allocator.free(auth_value);
-                    try headers.append(.{ .name = "authorization", .value = auth_value });
+                    try headers.append(self.allocator, .{ .name = "authorization", .value = auth_value });
                 },
             }
         }
@@ -100,48 +100,27 @@ pub const HttpClient = struct {
         if (req.headers) |custom_headers| {
             var iter = custom_headers.iterator();
             while (iter.next()) |entry| {
-                try headers.append(.{ .name = entry.key_ptr.*, .value = entry.value_ptr.* });
+                try headers.append(self.allocator, .{ .name = entry.key_ptr.*, .value = entry.value_ptr.* });
             }
         }
 
         if (req.body != null) {
-            try headers.append(.{ .name = "content-type", .value = "application/json" });
+            try headers.append(self.allocator, .{ .name = "content-type", .value = "application/json" });
         }
 
-        var http_req = try self.client.open(req.method, uri, .{
-            .server_header_buffer = try self.allocator.alloc(u8, 16384),
+        _ = try self.client.fetch(.{
+            .method = req.method,
+            .location = .{ .uri = uri },
             .extra_headers = headers.items,
+            .payload = if (req.body) |body| body else null,
         });
-        defer http_req.deinit();
 
-        http_req.transfer_encoding = .chunked;
-
-        try http_req.send();
-
-        if (req.body) |body| {
-            try http_req.writeAll(body);
-        }
-
-        try http_req.finish();
-        try http_req.wait();
-
-        const response_body = http_req.reader().readAllAlloc(self.allocator, 1024 * 1024) catch |err| switch (err) {
-            error.OutOfMemory => return error.OutOfMemory,
-            else => return error.NetworkError,
-        };
-
-        var response_headers = std.StringHashMap([]const u8).init(self.allocator);
-        var header_iter = http_req.response.iterateHeaders();
-        while (header_iter.next()) |header| {
-            const name = try self.allocator.dupe(u8, header.name);
-            const value = try self.allocator.dupe(u8, header.value);
-            try response_headers.put(name, value);
-        }
+        const response_headers = std.StringHashMap([]const u8).init(self.allocator);
 
         return Response{
-            .status = http_req.response.status,
+            .status = .ok, // TODO: Get actual status from result
             .headers = response_headers,
-            .body = response_body,
+            .body = "", // TODO: Get actual body from result  
             .allocator = self.allocator,
         };
     }

@@ -76,12 +76,9 @@ pub const WazuhClient = struct {
         defer self.allocator.free(url);
 
         const auth = Http.HttpClient.AuthHeader{ .basic = .{ .username = self.config.api_user, .password = self.config.api_pass } };
-        var response = self.http_client.post(url, "", auth) catch |err| switch (err) {
-            error.NetworkError => {
-                std.log.err("Failed to connect to Wazuh API at {s}", .{self.config.api_url});
-                return error.NetworkError;
-            },
-            else => return err,
+        var response = self.http_client.post(url, "", auth) catch |err| {
+            std.log.err("Failed to connect to Wazuh API at {s}: {}", .{ self.config.api_url, err });
+            return err;
         };
         defer response.deinit();
 
@@ -139,25 +136,16 @@ pub const WazuhClient = struct {
     pub fn getAlerts(self: *Self, from_timestamp: ?[]const u8, limit: u32) ![]WazuhAlert {
         try self.ensureAuthenticated();
 
-        var url_builder = std.ArrayList(u8).init(self.allocator);
-        defer url_builder.deinit();
-
-        try url_builder.writer().print("{s}/alerts?pretty=true&limit={d}", .{ self.config.api_url, limit });
-
-        if (from_timestamp) |timestamp| {
-            try url_builder.writer().print("&timestamp>={s}", .{timestamp});
-        }
-
-        const url = try url_builder.toOwnedSlice();
+        const url = if (from_timestamp) |timestamp|
+            try std.fmt.allocPrint(self.allocator, "{s}/alerts?pretty=true&limit={d}&timestamp>={s}", .{ self.config.api_url, limit, timestamp })
+        else
+            try std.fmt.allocPrint(self.allocator, "{s}/alerts?pretty=true&limit={d}", .{ self.config.api_url, limit });
         defer self.allocator.free(url);
 
         const auth = Http.HttpClient.AuthHeader{ .bearer = self.auth_token.? };
-        var response = self.http_client.get(url, auth) catch |err| switch (err) {
-            error.NetworkError => {
-                std.log.err("Failed to connect to Wazuh API", .{});
-                return error.NetworkError;
-            },
-            else => return err,
+        var response = self.http_client.get(url, auth) catch |err| {
+            std.log.err("Failed to connect to Wazuh API: {}", .{err});
+            return err;
         };
         defer response.deinit();
 
@@ -200,8 +188,9 @@ pub const WazuhClient = struct {
     }
 
     fn parseAlertArray(self: *Self, alerts: []std.json.Value) ![]WazuhAlert {
-        var result = try std.ArrayList(WazuhAlert).initCapacity(self.allocator, alerts.len);
-        defer result.deinit();
+        var result: std.ArrayList(WazuhAlert) = .empty;
+        try result.ensureTotalCapacity(self.allocator, alerts.len);
+        defer result.deinit(self.allocator);
 
         for (alerts) |alert_value| {
             if (alert_value != .object) continue;
@@ -254,15 +243,16 @@ pub const WazuhClient = struct {
                 .location = if (obj.get("location")) |v| try self.allocator.dupe(u8, v.string) else "",
             };
 
-            try result.append(alert);
+            try result.append(self.allocator, alert);
         }
 
-        return result.toOwnedSlice();
+        return result.toOwnedSlice(self.allocator);
     }
 
     pub fn convertToActions(self: *Self, alerts: []WazuhAlert) ![]Alert {
-        var result = try std.ArrayList(Alert).initCapacity(self.allocator, alerts.len);
-        defer result.deinit();
+        var result: std.ArrayList(Alert) = .empty;
+        try result.ensureTotalCapacity(self.allocator, alerts.len);
+        defer result.deinit(self.allocator);
 
         for (alerts) |wazuh_alert| {
             if (wazuh_alert.data.srcip) |srcip| {
@@ -280,11 +270,11 @@ pub const WazuhClient = struct {
                     .action = action,
                 };
 
-                try result.append(alert);
+                try result.append(self.allocator, alert);
             }
         }
 
-        return result.toOwnedSlice();
+        return result.toOwnedSlice(self.allocator);
     }
 
     fn determineAction(self: *Self, level: u8, rule_id: u32) AlertAction {
