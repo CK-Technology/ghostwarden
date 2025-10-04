@@ -1,15 +1,15 @@
 🛡️ Ghostwarden
 <div align="center">
-<img src="assets/icons/ghostwarden-logo.png" alt="Ghostwarden Icon">
+<img src="assets/icons/ghostwarden-logo.png" alt="Ghostwarden Icon" width="175">
 
 **Linux Network Guardian — nftables · Bridges · Firewalls · Visibility**
 
 *Like ufw++ but for Linux bridges, nftables, iptables, and policies*
 
-![rust](https://img.shields.io/badge/Built%20with-Rust-orange?logo=rust)
+![rust](https://img.shields.io/badge/Built%20with-Rust-red?logo=rust)
 ![nftables](https://img.shields.io/badge/Firewall-nftables-blue?logo=linux)
 ![bridge](https://img.shields.io/badge/Bridging-L2%20%26%20L3-green?logo=ethernet)
-![policy](https://img.shields.io/badge/Policy-Zero%20Trust-red)
+![policy](https://img.shields.io/badge/Policy-Zero%20Trust-teal)
 ![crowdsec](https://img.shields.io/badge/Integration-CrowdSec-4B7BBE?logo=crowdsource)
 ![wazuh](https://img.shields.io/badge/Integration-Wazuh-005B94)
 ![prometheus](https://img.shields.io/badge/Metrics-Prometheus-DA4E2B?logo=prometheus)
