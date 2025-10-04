@@ -1,118 +1,145 @@
-# Ghostwarden
-
+🛡️ Ghostwarden
 <div align="center">
-  <img src="assets/icons/ghostwarden-icon.png" alt="Ghostwarden Icon" width="128" height="128">
+<img src="assets/icons/ghostwarden.png" alt="Ghostwarden Icon" width="175" height="175">
 
-**Proxmox SDN + Cluster Firewall Enforcement, Powered by Zig**
+**Linux Network Guardian — nftables · Bridges · Firewalls · Visibility**
 
-![zig](https://img.shields.io/badge/Built%20with-Zig-yellow?logo=zig)
-![proxmox](https://img.shields.io/badge/Platform-Proxmox%20VE-orange?logo=proxmox)
-![sdn](https://img.shields.io/badge/SDN-Enabled-blue)
-![firewall](https://img.shields.io/badge/Firewall-Cluster%20%26%20Zone-red)
+*Like ufw++ but for Linux bridges, nftables, iptables, and policies*
+
+![rust](https://img.shields.io/badge/Built%20with-Rust-orange?logo=rust)
+![nftables](https://img.shields.io/badge/Firewall-nftables-blue?logo=linux)
+![bridge](https://img.shields.io/badge/Bridging-L2%20%26%20L3-green?logo=ethernet)
+![policy](https://img.shields.io/badge/Policy-Zero%20Trust-red)
 ![crowdsec](https://img.shields.io/badge/Integration-CrowdSec-4B7BBE?logo=crowdsource)
 ![wazuh](https://img.shields.io/badge/Integration-Wazuh-005B94)
+![prometheus](https://img.shields.io/badge/Metrics-Prometheus-DA4E2B?logo=prometheus)
+![proxmox](https://img.shields.io/badge/Compatible-Proxmox%20VE-orange?logo=proxmox)
+![archlinux](https://img.shields.io/badge/Tested%20on-Arch%20Linux-1793D1?logo=archlinux)
+![docker](https://img.shields.io/badge/Optional-Docker%20Ready-blue?logo=docker)
+![license](https://img.shields.io/badge/License-MIT-lightgrey)
 
 </div>
-
----
-
 ## Overview
 
-**Ghostwarden** is a high-performance Proxmox VE security bouncer built in Zig, designed to integrate seamlessly with **CrowdSec** and **Wazuh** to enforce bans and policies across:
+Ghostwarden is a Rust-powered network security orchestrator that unifies nftables, Linux bridges, and container/VM networks under a single declarative and human-friendly CLI.
 
-* **Proxmox VE Cluster Firewall**
-* **Proxmox SDN zones**
-* **Local nftables/ipsets**
-* Optional NGINX/IP set includes
+It helps you see, manage, and enforce what your containers, VMs, and hosts can talk to — across NAT, VLANs, VXLANs, and SDN bridges — with rollback-safe, zero-trust policies.
 
-Ghostwarden pulls ban decisions from CrowdSec's LAPI and/or Wazuh events, then applies them instantly at the Proxmox and network level. It's SDN-aware, cluster-aware, and built for speed.
-
----
+Ideal for Arch Linux, Proxmox, and developer labs, Ghostwarden acts as your network's guardian angel: translating YAML/CLI configs into live, auditable firewall and routing state.
 
 ## ✨ Features
 
-* **Cluster & SDN Enforcement**
+### Unified Networking UX
 
-  * Sync bans to Proxmox cluster IP sets
-  * Apply per-zone SDN firewall rules
-* **CrowdSec Integration**
+- Define bridges, NATs, and VLANs in a simple YAML topology
+- Apply in one command (`gwarden apply --commit`)
+- Rollback automatically on disconnects or errors
 
-  * Pull decisions from LAPI in real time
-  * Enforce community and custom scenarios
-* **Wazuh Integration**
+### nftables Policy Engine
 
-  * Parse alerts and trigger firewall actions
-* **Fast Local Mitigation**
+- Layer-3 firewall & NAT management via JSON rulesets
+- Dynamic port-forwards & per-network profiles
+- CrowdSec/Wazuh hooks for ban decisions
 
-  * Update nftables/ipsets instantly for zero-delay blocking
-* **Cluster-Aware**
+### Observability & Visualization
 
-  * Distribute bans across all Proxmox nodes
-* **Configurable TTLs & Whitelists**
+- Built-in Prometheus `/metrics` exporter
+- `gwarden graph --mermaid` for live topology diagrams
+- See which containers/VMs are talking and how
 
-  * Auto-expire bans
-  * Protect management networks and trusted IPs
+### Cluster-Aware (Future)
 
----
+- Integrates with Proxmox SDN bridges and libvirt networks
+- Detects `vmbr*`, `tap*`, `veth*`, and `vxlan*` interfaces automatically
+
+### Safe by Default
+
+- Transactional apply/rollback
+- Zero-trust profiles (e.g. `routed-tight`, `public-web`)
+- Whitelists, TTLs, and conflict detection
 
 ## 📦 Components
 
-* **ghostwardend** — main daemon, runs sync loops and applies bans
-* **collectors/** — Wazuh alert parser, local log tailers
-* **bouncers/**
-
-  * `pve` — Proxmox API client for IPSet + SDN rules
-  * `nft` — local nftables set updater
-  * `nginx` — optional map/include updater
-* **compat/**
-
-  * `crowdsec_lapi` — CrowdSec LAPI client
-
----
-
-## 🚀 Quick Start (Planned)
+| Component | Description |
+|-----------|-------------|
+| `gward` | Core daemon — applies nftables & manages state |
+| `net-core` | Topology model, diff planner, rollback engine |
+| `net-nft` | nftables JSON builder/verifier | 
+| `net-dhcpdns` | dnsmasq/CoreDNS management |
+| `net-bridge` | Handles Linux bridge/VLAN/VXLAN creation |
+| `integrations/` | CrowdSec, Wazuh, Prometheus exporters |
+| `net-cli` | `gwarden` commands (powered by clap) |
+## 🚀 Quick Start
 
 ```bash
-# Install Ghostwarden
-zig build -Drelease-safe
+# Build
+cargo build --release
 
-# Run the daemon with a config file
-ghostwardend --config /etc/ghostwarden/config.toml
+# Preview your current network plan
+gwarden plan
+
+# Apply network definitions (with rollback safety)
+gwarden apply --commit --confirm 30s
 ```
 
-**Example Config**
+### Example Topology (`/etc/ghostnet/workstation.yml`)
 
-```toml
-[pve]
-api_url = "https://proxmox.example.com:8006/api2/json"
-token_id = "root@pam!ghostwarden"
-token_secret = "<token>"
-ipset_name = "zekebanned"
+```yaml
+version: 1
+interfaces:
+  uplink: enp6s0
 
-[crowdsec]
-lapi_url = "http://crowdsec-lapi:8080"
-api_key = "<lapi-api-key>"
+networks:
+  br_work:
+    type: bridge
+    iface: br-work
+    vlan: 20
+    members:
+      - vm: devbox-01
+      - vm: devbox-02
 
-[wazuh]
-api_url = "https://wazuh.example.com"
-api_user = "gw-bouncer"
-api_pass = "<password>"
+  nat_dev:
+    type: routed
+    cidr: 10.33.0.0/24
+    dhcp: true
+    dns: true
+    masq_out: enp6s0
+    forwards:
+      - { public: ":4022/tcp", dst: "10.33.0.10:22" }
 ```
 
----
+## 🧠 Example CLI
+
+```bash
+# Create and apply a NAT network
+gwarden net create nat/dev --cidr 10.33.0.0/24 --dhcp --dns --masq via enp6s0
+
+# Add a port forward
+gwarden forward add nat/dev --dst 10.33.0.10:22 --public :4022/tcp
+
+# Generate a live diagram
+gwarden graph --mermaid
+
+# Monitor metrics
+curl localhost:9138/metrics
+```
 
 ## 🗺 Roadmap
 
-* [ ] MVP: CrowdSec LAPI → PVE IPSet sync
-* [ ] Add Wazuh alert → IPSet rules
-* [ ] Per-zone SDN rules
-* [ ] Local nftables fast-path bouncer
-* [ ] Whitelist/TTL management
-* [ ] Prometheus `/metrics` endpoint
+- [ ] MVP: nftables + dnsmasq orchestration
+- [ ] Prometheus metrics + live graph
+- [ ] Proxmox/libvirt integration
+- [ ] CrowdSec + Wazuh ban sync
+- [ ] VXLAN peer management
+- [ ] eBPF traffic sampling dashboard
 
----
+## 🧱 Stack
+
+- 🦀 Rust 2024 edition
+- 🧩 `neli`, `serde_yaml`, `nftables-json`, `clap`, `axum`, `prometheus`
+- ⚙️ Optional: systemd integration, journald logging
+- 🧠 Future: Ratatui TUI dashboard for live network map
 
 ## 📜 License
 
-MIT
-
+MIT © 2025 CK Technology / GhostKellz
