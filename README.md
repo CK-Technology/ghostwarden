@@ -1,6 +1,6 @@
 🛡️ Ghostwarden
 <div align="center">
-<img src="assets/icons/ghostwarden.png" alt="Ghostwarden Icon" width=200>
+<img src="assets/icons/ghostwarden.png" alt="Ghostwarden Icon" width=225>
 
 **Linux Network Guardian — nftables · Bridges · Firewalls · Visibility**
 
