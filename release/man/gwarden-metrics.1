@@ -1,0 +1,31 @@
+.TH GWARDEN-METRICS 1 "2025-01-23" "ghostwarden 0.1.0" "GhostWarden Manual"
+.SH NAME
+gwarden-metrics \- Prometheus metrics exporter
+.SH SYNOPSIS
+.B gwarden metrics serve
+[\-\-addr \fIADDRESS\fR]
+.SH DESCRIPTION
+Start HTTP server exposing Prometheus metrics for GhostWarden network state.
+.SH OPTIONS
+.TP
+.B \-\-addr \fIADDRESS\fR
+Bind address for metrics server (default: :9138)
+.SH METRICS
+Exported metrics include:
+.br
+• Bridge status and traffic counters
+.br
+• nftables table/chain/rule counts
+.br
+• DHCP lease counts
+.br
+• Apply/rollback operation counters
+.SH EXAMPLES
+.B gwarden metrics serve
+.br
+.B gwarden metrics serve \-\-addr 0.0.0.0:9138
+.br
+.B curl http://localhost:9138/metrics
+.SH SEE ALSO
+.BR gwarden (1),
+.BR prometheus (1)

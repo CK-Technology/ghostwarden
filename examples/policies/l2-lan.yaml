@@ -1,0 +1,28 @@
+name: l2-lan
+description: L2 bridged LAN policy - allow mDNS/LLMNR, default drop east-west
+
+default_action: drop
+
+# Only allow from local subnet
+allowed_ingress_cidrs:
+  - 10.0.0.0/8
+  - 172.16.0.0/12
+  - 192.168.0.0/16
+
+allowed_egress_cidrs:
+  - 10.0.0.0/8
+  - 172.16.0.0/12
+  - 192.168.0.0/16
+
+services:
+  # mDNS
+  - protocol: udp
+    port: 5353
+  # LLMNR
+  - protocol: udp
+    port: 5355
+  # DHCP
+  - protocol: udp
+    port: 67
+  - protocol: udp
+    port: 68

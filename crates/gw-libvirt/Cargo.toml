@@ -1,0 +1,13 @@
+[package]
+name = "gw-libvirt"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+rand.workspace = true
+# virt.workspace = true  # Enable when implementing virt crate integration

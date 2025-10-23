@@ -41,6 +41,13 @@ Ideal for Arch Linux, Proxmox, and developer labs, Ghostwarden acts as your netw
 - Dynamic port-forwards & per-network profiles
 - CrowdSec/Wazuh hooks for ban decisions
 
+### Troubleshooting & Diagnostics
+
+- **`gwarden doctor`** - Comprehensive network diagnostics
+- Automatically checks nftables/iptables rules, Docker networking, bridge configuration
+- Identifies kernel modules, sysctl settings, and common misconfigurations
+- Provides actionable suggestions and fix commands
+
 ### Observability & Visualization
 
 - Built-in Prometheus `/metrics` exporter
@@ -116,6 +123,12 @@ gwarden net create nat/dev --cidr 10.33.0.0/24 --dhcp --dns --masq via enp6s0
 
 # Add a port forward
 gwarden forward add nat/dev --dst 10.33.0.10:22 --public :4022/tcp
+
+# Troubleshoot networking issues (NEW!)
+gwarden doctor                    # Run all diagnostics
+gwarden doctor nftables          # Check firewall rules
+gwarden doctor docker            # Check Docker networking
+gwarden doctor bridges           # Check bridge configuration
 
 # Generate a live diagram
 gwarden graph --mermaid

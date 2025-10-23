@@ -1,0 +1,26 @@
+name: public-web
+description: Public web server policy - allow HTTP/HTTPS inbound
+
+default_action: drop
+
+# Allow from anywhere
+allowed_ingress_cidrs:
+  - 0.0.0.0/0
+
+allowed_egress_cidrs:
+  - 0.0.0.0/0
+
+services:
+  # Web ports
+  - protocol: tcp
+    port: 80
+  - protocol: tcp
+    port: 443
+  # DNS
+  - protocol: udp
+    port: 53
+  # HTTP outbound
+  - protocol: tcp
+    port: 80
+  - protocol: tcp
+    port: 443

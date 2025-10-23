@@ -1,0 +1,27 @@
+[package]
+name = "gw-cli"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "gwarden"
+path = "src/main.rs"
+
+[dependencies]
+gw-core = { path = "../gw-core" }
+gw-nl = { path = "../gw-nl" }
+gw-nft = { path = "../gw-nft" }
+gw-dhcpdns = { path = "../gw-dhcpdns" }
+gw-libvirt = { path = "../gw-libvirt" }
+gw-tui = { path = "../gw-tui" }
+gw-troubleshoot = { path = "../gw-troubleshoot" }
+gw-metrics = { path = "../gw-metrics" }
+
+clap.workspace = true
+anyhow.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde_yaml.workspace = true

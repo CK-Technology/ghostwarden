@@ -1,0 +1,50 @@
+.TH GWARDEN-NET 1 "2025-01-23" "ghostwarden 0.1.0" "GhostWarden Manual"
+.SH NAME
+gwarden-net \- Network topology management
+.SH SYNOPSIS
+.B gwarden net
+\fICOMMAND\fR [\fIOPTIONS\fR]
+.SH DESCRIPTION
+Manage network topology including bridges, NAT, VLANs, and nftables rules.
+.SH COMMANDS
+.TP
+.B plan [\fIFILE\fR]
+Preview network changes without applying them. Validates topology and shows planned actions.
+.TP
+.B apply [\fIFILE\fR] [\-\-commit] [\-\-confirm \fISECONDS\fR]
+Apply network configuration. Use \fB\-\-commit\fR to actually apply (otherwise dry-run). Use \fB\-\-confirm\fR to enable automatic rollback after timeout.
+.TP
+.B status
+Show current network status including bridges, nftables rules, and DHCP leases.
+.TP
+.B rollback
+Manually trigger rollback to previous configuration.
+.SH OPTIONS
+.TP
+.B \-\-commit
+Actually apply changes (required for non-dry-run)
+.TP
+.B \-\-confirm \fISECONDS\fR
+Enable rollback timeout. If not confirmed within \fISECONDS\fR, changes are rolled back automatically.
+.SH EXAMPLES
+.TP
+Preview changes:
+.B gwarden net plan ghostnet.yaml
+.TP
+Apply with 30-second rollback window:
+.B sudo gwarden net apply \-\-commit \-\-confirm 30s ghostnet.yaml
+.TP
+Check status:
+.B gwarden net status
+.TP
+Manual rollback:
+.B sudo gwarden net rollback
+.SH FILES
+.TP
+.I /etc/ghostwarden/ghostnet.yaml
+Default topology file
+.SH SEE ALSO
+.BR gwarden (1),
+.BR nft (8)
+.SH AUTHOR
+Christopher Kelley <ckelley@ghostkellz.sh>

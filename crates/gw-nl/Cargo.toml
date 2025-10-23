@@ -1,0 +1,15 @@
+[package]
+name = "gw-nl"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+gw-core = { path = "../gw-core" }
+anyhow.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+rtnetlink.workspace = true
+netlink-packet-route.workspace = true
+futures = "0.3"

@@ -1,0 +1,88 @@
+# Maintainer: Christopher Kelley <ckelley@ghostkellz.sh>
+pkgname=ghostwarden
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Linux Network Guardian - nftables, bridges, firewalls, and visibility orchestrator"
+arch=('x86_64' 'aarch64')
+url="https://github.com/ghostkellz/ghostwarden"
+license=('MIT')
+depends=('nftables' 'dnsmasq')
+makedepends=('rust' 'cargo')
+optdepends=(
+    'proxmox-ve: Proxmox VE integration'
+    'libvirt: VM management integration'
+    'crowdsec: Threat intelligence integration'
+    'wazuh: Security monitoring integration'
+    'prometheus: Metrics collection'
+)
+backup=(
+    'etc/ghostwarden/ghostnet.yaml'
+    'etc/ghostwarden/daemon.toml'
+)
+source=(
+    "ghostwarden-$pkgver.tar.gz::https://github.com/ghostkellz/ghostwarden/archive/v$pkgver.tar.gz"
+)
+sha256sums=('SKIP')  # Update with actual checksum for releases
+
+prepare() {
+    cd "$srcdir/$pkgname-$pkgver"
+    export RUSTUP_TOOLCHAIN=stable
+    cargo fetch --locked --target "$CARCH-unknown-linux-gnu"
+}
+
+build() {
+    cd "$srcdir/$pkgname-$pkgver"
+    export RUSTUP_TOOLCHAIN=stable
+    export CARGO_TARGET_DIR=target
+    cargo build --frozen --release --all-features
+}
+
+check() {
+    cd "$srcdir/$pkgname-$pkgver"
+    export RUSTUP_TOOLCHAIN=stable
+    cargo test --frozen --lib --workspace
+}
+
+package() {
+    cd "$srcdir/$pkgname-$pkgver"
+
+    # Install binary
+    install -Dm755 "target/release/gwarden" "$pkgdir/usr/bin/gwarden"
+
+    # Install systemd units
+    install -Dm644 "release/systemd/gwarden.service" "$pkgdir/usr/lib/systemd/system/gwarden.service"
+    install -Dm644 "release/systemd/gwarden-metrics.service" "$pkgdir/usr/lib/systemd/system/gwarden-metrics.service"
+
+    # Install configuration files
+    install -Dm644 "examples/ghostnet.yaml" "$pkgdir/etc/ghostwarden/ghostnet.yaml"
+    install -Dm644 "release/configs/daemon.toml" "$pkgdir/etc/ghostwarden/daemon.toml"
+
+    # Install policy profiles
+    install -dm755 "$pkgdir/etc/ghostwarden/policies"
+    install -Dm644 examples/policies/*.yaml "$pkgdir/etc/ghostwarden/policies/"
+
+    # Install shell completions
+    install -Dm644 "release/completions/gwarden.bash" "$pkgdir/usr/share/bash-completion/completions/gwarden"
+    install -Dm644 "release/completions/gwarden.zsh" "$pkgdir/usr/share/zsh/site-functions/_gwarden"
+    install -Dm644 "release/completions/gwarden.gsh" "$pkgdir/usr/share/gsh/completions/gwarden.gsh"
+
+    # Install man pages
+    install -Dm644 "release/man/gwarden.1" "$pkgdir/usr/share/man/man1/gwarden.1"
+    install -Dm644 "release/man/gwarden-net.1" "$pkgdir/usr/share/man/man1/gwarden-net.1"
+    install -Dm644 "release/man/gwarden-vm.1" "$pkgdir/usr/share/man/man1/gwarden-vm.1"
+    install -Dm644 "release/man/gwarden-forward.1" "$pkgdir/usr/share/man/man1/gwarden-forward.1"
+    install -Dm644 "release/man/gwarden-policy.1" "$pkgdir/usr/share/man/man1/gwarden-policy.1"
+    install -Dm644 "release/man/gwarden-metrics.1" "$pkgdir/usr/share/man/man1/gwarden-metrics.1"
+    install -Dm644 "release/man/gwarden-doctor.1" "$pkgdir/usr/share/man/man1/gwarden-doctor.1"
+    install -Dm644 "release/man/gwarden-graph.1" "$pkgdir/usr/share/man/man1/gwarden-graph.1"
+
+    # Install license
+    install -Dm644 "LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+
+    # Install documentation
+    install -Dm644 "README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
+    install -Dm644 "ROADMAP.md" "$pkgdir/usr/share/doc/$pkgname/ROADMAP.md"
+
+    # Create state directory
+    install -dm755 "$pkgdir/var/lib/ghostwarden"
+}

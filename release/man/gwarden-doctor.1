@@ -1,0 +1,31 @@
+.TH GWARDEN-DOCTOR 1 "2025-01-23" "ghostwarden 0.1.0" "GhostWarden Manual"
+.SH NAME
+gwarden-doctor \- Network diagnostics and troubleshooting
+.SH SYNOPSIS
+.B gwarden doctor
+[\fICHECK\fR]
+.SH DESCRIPTION
+Run comprehensive network diagnostics to identify configuration issues, conflicts, and misconfigurations.
+.SH CHECKS
+.TP
+.B nftables
+Check nftables rules, NAT configuration, and firewall conflicts
+.TP
+.B docker
+Check Docker networking and bridge conflicts
+.TP
+.B bridges
+Check Linux bridge configuration
+.TP
+.B (no argument)
+Run all diagnostic checks
+.SH EXAMPLES
+.B sudo gwarden doctor
+.br
+.B sudo gwarden doctor nftables
+.br
+.B sudo gwarden doctor docker
+.SH SEE ALSO
+.BR gwarden (1),
+.BR nft (8),
+.BR ip-link (8)

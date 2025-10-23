@@ -1,0 +1,25 @@
+version: 1
+interfaces:
+  uplink: enp6s0
+
+networks:
+  nat_dev:
+    type: routed
+    cidr: 10.33.0.0/24
+    gw_ip: 10.33.0.1
+    dhcp: true
+    dns:
+      enabled: true
+      zones:
+        - dev.lan
+    masq_out: enp6s0
+    forwards:
+      - public: "0.0.0.0:4022/tcp"
+        dst: "10.33.0.10:22"
+    policy_profile: routed-tight
+
+  br_work:
+    type: bridge
+    iface: br-work
+    vlan: 20
+    policy_profile: l2-lan

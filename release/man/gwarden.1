@@ -1,0 +1,93 @@
+.TH GWARDEN 1 "2025-01-23" "ghostwarden 0.1.0" "GhostWarden Manual"
+.SH NAME
+gwarden \- Linux Network Guardian for nftables, bridges, and firewalls
+.SH SYNOPSIS
+.B gwarden
+[\fIGLOBAL OPTIONS\fR] \fICOMMAND\fR [\fIOPTIONS\fR]
+.SH DESCRIPTION
+.B gwarden
+is a Rust-powered network security orchestrator that unifies nftables, Linux bridges, and container/VM networks under a single declarative CLI. It helps you manage and enforce zero-trust network policies across NAT, VLANs, VXLANs, and SDN bridges with rollback-safe operations.
+.SH COMMANDS
+.TP
+.B net
+Network topology management (plan, apply, status, rollback)
+.TP
+.B vm
+Virtual machine network management
+.TP
+.B forward
+Port forwarding management (add, remove, list)
+.TP
+.B policy
+Security policy management
+.TP
+.B metrics
+Prometheus metrics server
+.TP
+.B doctor
+Network diagnostics and troubleshooting
+.TP
+.B graph
+Topology visualization (mermaid diagrams)
+.TP
+.B tui
+Terminal user interface for live monitoring
+.SH GLOBAL OPTIONS
+.TP
+.B \-h, \-\-help
+Print help information
+.TP
+.B \-V, \-\-version
+Print version information
+.SH EXAMPLES
+.TP
+Preview network changes:
+.B gwarden net plan
+.TP
+Apply configuration with rollback safety:
+.B sudo gwarden net apply \-\-commit \-\-confirm 30s
+.TP
+Check current network status:
+.B gwarden net status
+.TP
+Add a port forward:
+.B gwarden forward add nat/dev \-\-public :8080/tcp \-\-dst 10.0.0.10:80
+.TP
+Run network diagnostics:
+.B sudo gwarden doctor
+.TP
+Start metrics server:
+.B gwarden metrics serve \-\-addr :9138
+.TP
+Launch TUI dashboard:
+.B gwarden tui
+.SH FILES
+.TP
+.I /etc/ghostwarden/ghostnet.yaml
+Main topology configuration file
+.TP
+.I /etc/ghostwarden/daemon.toml
+Daemon configuration
+.TP
+.I /etc/ghostwarden/policies/
+Policy profile definitions
+.TP
+.I /var/lib/ghostwarden/
+State storage directory
+.SH SEE ALSO
+.BR gwarden-net (1),
+.BR gwarden-vm (1),
+.BR gwarden-forward (1),
+.BR gwarden-policy (1),
+.BR gwarden-metrics (1),
+.BR gwarden-doctor (1),
+.BR gwarden-graph (1),
+.BR nft (8),
+.BR dnsmasq (8),
+.BR systemd (1)
+.SH BUGS
+Report bugs at: https://github.com/ghostkellz/ghostwarden/issues
+.SH AUTHOR
+Christopher Kelley <ckelley@ghostkellz.sh>
+.SH COPYRIGHT
+Copyright \(co 2025 CK Technology. Licensed under the MIT License.

@@ -1,0 +1,18 @@
+.TH GWARDEN-GRAPH 1 "2025-01-23" "ghostwarden 0.1.0" "GhostWarden Manual"
+.SH NAME
+gwarden-graph \- Network topology visualization
+.SH SYNOPSIS
+.B gwarden graph
+[\-\-mermaid] [\fIFILE\fR]
+.SH DESCRIPTION
+Generate visual diagrams of network topology.
+.SH OPTIONS
+.TP
+.B \-\-mermaid
+Output Mermaid diagram syntax (can be rendered in GitHub, GitLab, etc.)
+.SH EXAMPLES
+.B gwarden graph \-\-mermaid
+.br
+.B gwarden graph \-\-mermaid ghostnet.yaml | pbcopy
+.SH SEE ALSO
+.BR gwarden (1)

@@ -1,0 +1,12 @@
+[package]
+name = "gw-dhcpdns"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+gw-core = { path = "../gw-core" }
+anyhow.workspace = true
+thiserror.workspace = true
+tokio.workspace = true

@@ -1,0 +1,16 @@
+[package]
+name = "gw-tui"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+gw-core = { path = "../gw-core" }
+gw-nl = { path = "../gw-nl" }
+gw-nft = { path = "../gw-nft" }
+gw-dhcpdns = { path = "../gw-dhcpdns" }
+anyhow.workspace = true
+tokio.workspace = true
+ratatui.workspace = true
+crossterm.workspace = true

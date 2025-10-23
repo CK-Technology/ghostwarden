@@ -1,0 +1,23 @@
+pkgbase = ghostwarden
+	pkgdesc = Linux Network Guardian - nftables, bridges, firewalls, and visibility orchestrator
+	pkgver = 0.1.0
+	pkgrel = 1
+	url = https://github.com/ghostkellz/ghostwarden
+	arch = x86_64
+	arch = aarch64
+	license = MIT
+	makedepends = rust
+	makedepends = cargo
+	depends = nftables
+	depends = dnsmasq
+	optdepends = proxmox-ve: Proxmox VE integration
+	optdepends = libvirt: VM management integration
+	optdepends = crowdsec: Threat intelligence integration
+	optdepends = wazuh: Security monitoring integration
+	optdepends = prometheus: Metrics collection
+	backup = etc/ghostwarden/ghostnet.yaml
+	backup = etc/ghostwarden/daemon.toml
+	source = ghostwarden-0.1.0.tar.gz::https://github.com/ghostkellz/ghostwarden/archive/v0.1.0.tar.gz
+	sha256sums = SKIP
+
+pkgname = ghostwarden

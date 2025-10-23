@@ -1,0 +1,81 @@
+# GhostWarden Daemon Configuration
+
+[daemon]
+# Bind address for metrics server
+metrics_bind = "127.0.0.1:9138"
+
+# Auto-apply configuration on file changes
+auto_apply = false
+
+# Confirmation timeout for rollback (seconds)
+rollback_timeout = 30
+
+# Enable SSH connectivity check during rollback
+ssh_check_enabled = true
+
+[paths]
+# Main topology file
+topology = "/etc/ghostwarden/ghostnet.yaml"
+
+# Policy profiles directory
+policies = "/etc/ghostwarden/policies/"
+
+# State storage directory
+state = "/var/lib/ghostwarden/"
+
+# Log directory
+logs = "/var/log/ghostwarden/"
+
+[logging]
+# Log level: trace, debug, info, warn, error
+level = "info"
+
+# Log format: json, text
+format = "text"
+
+# Enable journald integration
+journald = true
+
+[nftables]
+# Default table family
+default_family = "inet"
+
+# Flush existing rules on apply
+flush_on_apply = false
+
+# Validate rules before applying
+validate_before_apply = true
+
+[dhcp]
+# DHCP lease file path
+lease_file = "/var/lib/dnsmasq/dnsmasq.leases"
+
+# dnsmasq config directory
+config_dir = "/etc/dnsmasq.d/"
+
+[rollback]
+# Store rollback history
+history_enabled = true
+
+# Maximum rollback history entries
+history_max = 10
+
+# Rollback history file
+history_file = "/var/lib/ghostwarden/rollback_history.json"
+
+[integrations]
+# Enable Proxmox integration
+proxmox_enabled = false
+proxmox_api_url = "https://proxmox.local:8006/api2/json"
+
+# Enable libvirt integration
+libvirt_enabled = false
+libvirt_uri = "qemu:///system"
+
+# Enable CrowdSec integration
+crowdsec_enabled = false
+crowdsec_lapi_url = "http://localhost:8080"
+
+# Enable Wazuh integration
+wazuh_enabled = false
+wazuh_api_url = "https://localhost:55000"

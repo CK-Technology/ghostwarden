@@ -1,0 +1,25 @@
+name: routed-tight
+description: Tight NAT policy - only allow essential outbound traffic
+
+default_action: drop
+
+# Allowed egress (outbound from VMs)
+allowed_egress_cidrs:
+  - 0.0.0.0/0  # Allow all outbound (will be filtered by services)
+
+# Allowed ingress (inbound to VMs)
+allowed_ingress_cidrs: []  # No inbound allowed by default
+
+# Allowed services (protocols + ports)
+services:
+  # DNS
+  - protocol: udp
+    port: 53
+  # HTTP/HTTPS
+  - protocol: tcp
+    port: 80
+  - protocol: tcp
+    port: 443
+  # NTP
+  - protocol: udp
+    port: 123

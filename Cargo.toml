@@ -1,6 +1,60 @@
-[package]
-name = "ghostwarden"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+resolver = "2"
+members = [
+    "crates/gw-cli",
+    "crates/gw-core",
+    "crates/gw-nft",
+    "crates/gw-nl",
+    "crates/gw-dhcpdns",
+    "crates/gw-libvirt",
+    "crates/gw-tui",
+    "crates/gw-metrics",
+    "crates/gw-troubleshoot",
+]
 
-[dependencies]
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+license = "MIT"
+authors = ["Christopher Kelley <ckelley@ghostkellz.sh>"]
+
+[workspace.dependencies]
+# CLI
+clap = { version = "4.5", features = ["derive", "cargo"] }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+
+# Error handling
+anyhow = "1"
+thiserror = "1"
+
+# Netlink
+rtnetlink = "0.14"
+netlink-packet-route = "0.19"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# TUI
+ratatui = "0.28"
+crossterm = "0.28"
+
+# Metrics
+prometheus = { version = "0.13", features = ["process"] }
+
+# Random number generation
+rand = "0.8"
+axum = "0.7"
+
+# Libvirt
+virt = "0.3"
+
+# Regex
+regex = "1"

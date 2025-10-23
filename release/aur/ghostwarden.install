@@ -1,0 +1,64 @@
+#!/bin/bash
+
+post_install() {
+    echo ""
+    echo "============================================"
+    echo "  GhostWarden Installation Complete! 🛡️"
+    echo "============================================"
+    echo ""
+    echo "Getting started:"
+    echo "  1. Copy example config: sudo cp /etc/ghostwarden/ghostnet.yaml.example /etc/ghostwarden/ghostnet.yaml"
+    echo "  2. Edit your topology: sudo nano /etc/ghostwarden/ghostnet.yaml"
+    echo "  3. Preview changes: gwarden net plan"
+    echo "  4. Apply config: sudo gwarden net apply --commit --confirm 30s"
+    echo ""
+    echo "Optional services:"
+    echo "  • Enable metrics: sudo systemctl enable --now gwarden-metrics.service"
+    echo "  • Start daemon: sudo systemctl enable --now gwarden.service"
+    echo ""
+    echo "Documentation:"
+    echo "  • Man pages: man gwarden"
+    echo "  • Examples: /usr/share/doc/ghostwarden/"
+    echo "  • Policies: /etc/ghostwarden/policies/"
+    echo ""
+    echo "Troubleshooting:"
+    echo "  • Run diagnostics: sudo gwarden doctor"
+    echo "  • Check status: gwarden net status"
+    echo "  • View topology: gwarden graph --mermaid"
+    echo ""
+    echo "⚠️  IMPORTANT: GhostWarden requires root/CAP_NET_ADMIN for network operations"
+    echo ""
+}
+
+post_upgrade() {
+    echo ""
+    echo "GhostWarden upgraded to $2"
+    echo ""
+    echo "Review your configuration:"
+    echo "  • Config: /etc/ghostwarden/ghostnet.yaml"
+    echo "  • Daemon: /etc/ghostwarden/daemon.toml"
+    echo ""
+    echo "Restart services if running:"
+    echo "  sudo systemctl restart gwarden.service"
+    echo "  sudo systemctl restart gwarden-metrics.service"
+    echo ""
+}
+
+pre_remove() {
+    # Stop services before removal
+    systemctl stop gwarden.service 2>/dev/null || true
+    systemctl stop gwarden-metrics.service 2>/dev/null || true
+}
+
+post_remove() {
+    echo ""
+    echo "GhostWarden has been removed."
+    echo ""
+    echo "Configuration preserved in:"
+    echo "  • /etc/ghostwarden/"
+    echo "  • /var/lib/ghostwarden/"
+    echo ""
+    echo "To completely remove all data:"
+    echo "  sudo rm -rf /etc/ghostwarden /var/lib/ghostwarden"
+    echo ""
+}

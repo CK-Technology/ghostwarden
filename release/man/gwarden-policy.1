@@ -1,0 +1,26 @@
+.TH GWARDEN-POLICY 1 "2025-01-23" "ghostwarden 0.1.0" "GhostWarden Manual"
+.SH NAME
+gwarden-policy \- Security policy management
+.SH SYNOPSIS
+.B gwarden policy
+\fICOMMAND\fR [\fIOPTIONS\fR]
+.SH DESCRIPTION
+Manage zero-trust security policy profiles for networks.
+.SH COMMANDS
+.TP
+.B set \-\-net \fINETWORK\fR \-\-profile \fIPROFILE\fR
+Apply a policy profile to a network
+.TP
+.B list
+List available policy profiles
+.SH EXAMPLES
+.B gwarden policy list
+.br
+.B gwarden policy set \-\-net nat/dev \-\-profile routed-tight
+.SH FILES
+.TP
+.I /etc/ghostwarden/policies/
+Policy profile definitions
+.SH SEE ALSO
+.BR gwarden (1),
+.BR nft (8)

@@ -1,0 +1,40 @@
+[Unit]
+Description=GhostWarden Metrics Exporter
+Documentation=man:gwarden-metrics(1)
+After=network-online.target gwarden.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/gwarden metrics serve --addr :9138
+Restart=on-failure
+RestartSec=5s
+
+# Security hardening
+User=ghostwarden
+Group=ghostwarden
+DynamicUser=true
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/etc/ghostwarden /var/lib/ghostwarden
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gwarden-metrics
+
+[Install]
+WantedBy=multi-user.target

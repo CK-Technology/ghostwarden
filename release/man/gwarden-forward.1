@@ -1,0 +1,28 @@
+.TH GWARDEN-FORWARD 1 "2025-01-23" "ghostwarden 0.1.0" "GhostWarden Manual"
+.SH NAME
+gwarden-forward \- Port forwarding management
+.SH SYNOPSIS
+.B gwarden forward
+\fICOMMAND\fR [\fIOPTIONS\fR]
+.SH DESCRIPTION
+Manage port forwards (DNAT rules) for routed networks.
+.SH COMMANDS
+.TP
+.B add \-\-net \fINETWORK\fR \-\-public \fISPEC\fR \-\-dst \fIDEST\fR
+Add a port forward. Public spec format: \fI:PORT/PROTO\fR or \fIIP:PORT/PROTO\fR. Destination format: \fIIP:PORT\fR
+.TP
+.B remove \-\-net \fINETWORK\fR \-\-public \fISPEC\fR
+Remove a port forward
+.TP
+.B list
+List all configured port forwards
+.SH EXAMPLES
+.B gwarden forward add \-\-net nat/dev \-\-public :8080/tcp \-\-dst 10.0.0.10:80
+.br
+.B gwarden forward remove \-\-net nat/dev \-\-public :8080/tcp
+.br
+.B gwarden forward list
+.SH SEE ALSO
+.BR gwarden (1),
+.BR gwarden-net (1),
+.BR nft (8)

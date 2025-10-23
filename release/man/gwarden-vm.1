@@ -1,0 +1,22 @@
+.TH GWARDEN-VM 1 "2025-01-23" "ghostwarden 0.1.0" "GhostWarden Manual"
+.SH NAME
+gwarden-vm \- Virtual machine network management
+.SH SYNOPSIS
+.B gwarden vm
+\fICOMMAND\fR [\fIOPTIONS\fR]
+.SH DESCRIPTION
+Manage VM network attachments for libvirt/QEMU VMs.
+.SH COMMANDS
+.TP
+.B list
+List available VMs
+.TP
+.B attach \-\-vm \fINAME\fR \-\-net \fINETWORK\fR
+Attach VM to a network bridge
+.SH EXAMPLES
+.B gwarden vm list
+.br
+.B sudo gwarden vm attach \-\-vm devbox \-\-net br-work
+.SH SEE ALSO
+.BR gwarden (1),
+.BR virsh (1)
