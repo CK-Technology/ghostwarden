@@ -1,8 +1,9 @@
 use clap::{Parser, Subcommand};
-use gw_core::{Plan, Topology, ExecutionContext};
-use gw_nl::{BridgeManager, AddressManager};
-use gw_nft::NftManager;
+use gw_core::rollback;
+use gw_core::{ExecutionContext, Plan, PlanAction, Topology, nft_config_for_table};
 use gw_dhcpdns::DnsmasqManager;
+use gw_nft::NftManager;
+use gw_nl::{AddressManager, BridgeManager};
 use tracing_subscriber;
 
 #[derive(Parser)]
@@ -64,9 +65,25 @@ enum NetAction {
         commit: bool,
         #[arg(long, default_value = "30")]
         confirm: u64,
+        #[arg(long)]
+        probe: Option<String>,
+        #[arg(long, default_value = "3")]
+        probe_timeout: u64,
     },
     /// Show current network status
     Status,
+    /// Compare desired nftables rules with live system
+    Diff {
+        #[arg(short, long, default_value = "ghostnet.yaml")]
+        file: String,
+        #[arg(long)]
+        table: Option<String>,
+    },
+    /// Roll back the last applied configuration snapshot
+    Rollback {
+        #[arg(long)]
+        execute: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -114,6 +131,8 @@ enum PolicyAction {
         net: String,
         #[arg(long)]
         profile: String,
+        #[arg(long, default_value = "ghostnet.yaml")]
+        file: String,
     },
     /// List available policy profiles
     List,
@@ -151,19 +170,15 @@ fn main() -> anyhow::Result<()> {
         Commands::Forward { action } => handle_forward_action(action)?,
         Commands::Policy { action } => handle_policy_action(action)?,
         Commands::Tui => {
-            tokio::runtime::Runtime::new()?.block_on(async {
-                run_tui().await
-            })?;
+            tokio::runtime::Runtime::new()?.block_on(async { run_tui().await })?;
         }
         Commands::Metrics { action } => {
-            tokio::runtime::Runtime::new()?.block_on(async {
-                handle_metrics_action(action).await
-            })?;
+            tokio::runtime::Runtime::new()?
+                .block_on(async { handle_metrics_action(action).await })?;
         }
         Commands::Doctor { action } => {
-            tokio::runtime::Runtime::new()?.block_on(async {
-                handle_doctor_action(action).await
-            })?;
+            tokio::runtime::Runtime::new()?
+                .block_on(async { handle_doctor_action(action).await })?;
         }
     }
 
@@ -181,16 +196,24 @@ fn handle_net_action(action: NetAction) -> anyhow::Result<()> {
             file,
             commit,
             confirm,
+            probe,
+            probe_timeout,
         } => {
             // Run async apply
             tokio::runtime::Runtime::new()?.block_on(async {
-                apply_network_config(&file, commit, confirm).await
+                apply_network_config(&file, commit, confirm, probe, probe_timeout).await
             })?;
         }
         NetAction::Status => {
-            tokio::runtime::Runtime::new()?.block_on(async {
-                show_network_status().await
-            })?;
+            tokio::runtime::Runtime::new()?.block_on(async { show_network_status().await })?;
+        }
+        NetAction::Diff { file, table } => {
+            tokio::runtime::Runtime::new()?
+                .block_on(async { diff_network_config(&file, table.as_deref()).await })?;
+        }
+        NetAction::Rollback { execute } => {
+            tokio::runtime::Runtime::new()?
+                .block_on(async { run_snapshot_rollback(execute).await })?;
         }
     }
     Ok(())
@@ -198,9 +221,9 @@ fn handle_net_action(action: NetAction) -> anyhow::Result<()> {
 
 async fn show_network_status() -> anyhow::Result<()> {
     use gw_core::NetworkStatus;
-    use gw_nl::StatusCollector;
-    use gw_nft::NftStatusCollector;
     use gw_dhcpdns::LeaseReader;
+    use gw_nft::NftStatusCollector;
+    use gw_nl::StatusCollector;
 
     let mut status = NetworkStatus::new();
 
@@ -222,11 +245,20 @@ async fn show_network_status() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn apply_network_config(file: &str, commit: bool, confirm: u64) -> anyhow::Result<()> {
-    use gw_core::{ExecutionContext, Topology, Plan, PlanAction, ConflictDetector, RollbackManager, TopologyValidator};
-    use gw_nl::{BridgeManager, AddressManager};
-    use gw_nft::NftManager;
+async fn apply_network_config(
+    file: &str,
+    commit: bool,
+    confirm: u64,
+    probe: Option<String>,
+    probe_timeout: u64,
+) -> anyhow::Result<()> {
+    use gw_core::{
+        ConflictDetector, ExecutionContext, Plan, PlanAction, RollbackManager, Topology,
+        TopologyValidator,
+    };
     use gw_dhcpdns::DnsmasqManager;
+    use gw_nft::NftManager;
+    use gw_nl::{AddressManager, BridgeManager};
 
     println!("🚀 Loading topology from {}", file);
     let topology = Topology::from_file(std::path::Path::new(file))?;
@@ -265,7 +297,9 @@ async fn apply_network_config(file: &str, commit: bool, confirm: u64) -> anyhow:
     conflict_report.display();
 
     if conflict_report.has_errors() && !commit {
-        println!("\n❌ Found critical conflicts. Fix them before applying, or use --commit --force to override");
+        println!(
+            "\n❌ Found critical conflicts. Fix them before applying, or use --commit --force to override"
+        );
         return Ok(());
     }
 
@@ -288,6 +322,9 @@ async fn apply_network_config(file: &str, commit: bool, confirm: u64) -> anyhow:
     let vlan_mgr = gw_nl::VlanManager::new().await?;
 
     let mut context = ExecutionContext::new(true);
+    context.attach_plan(plan.clone());
+
+    let profiles = gw_core::ProfileLoader::new().load_default_profiles();
 
     // Execute plan actions
     for (i, action) in plan.actions.iter().enumerate() {
@@ -311,36 +348,17 @@ async fn apply_network_config(file: &str, commit: bool, confirm: u64) -> anyhow:
                 bridge_mgr.enable_forwarding(iface).await?;
                 context.record_action(action.clone());
             }
-            PlanAction::CreateNftRuleset { table, rules: _ } => {
-                // Generate and apply nftables ruleset
-                if let Some(nft_config) = get_nft_config(&topology, table)? {
-                    // Load policy profile if specified
-                    let policy = if let Some(profile_name) = &nft_config.policy_profile {
-                        let profile_loader = gw_core::ProfileLoader::new();
-                        let profiles = profile_loader.load_default_profiles();
+            PlanAction::CreateNftRuleset { table, .. } => {
+                if let Some(generated) = generate_ruleset(&nft_mgr, &topology, table, &profiles)? {
+                    if let Some(policy_name) = &generated.policy_loaded {
+                        println!("   📜 Loaded policy profile: {}", policy_name);
+                    }
+                    if let Some(missing) = &generated.policy_missing {
+                        eprintln!("   ⚠️  Policy profile '{}' not found", missing);
+                    }
 
-                        if let Some(p) = profiles.get(profile_name) {
-                            println!("   📜 Loaded policy profile: {}", profile_name);
-                            Some(p.clone())
-                        } else {
-                            eprintln!("   ⚠️  Policy profile '{}' not found", profile_name);
-                            None
-                        }
-                    } else {
-                        None
-                    };
-
-                    // Generate complete ruleset with NAT + policy filtering
-                    let bridge_name = format!("br-{}", nft_config.network_name);
-                    let ruleset = nft_mgr.create_complete_ruleset(
-                        table,
-                        &bridge_name,
-                        &nft_config.cidr,
-                        &nft_config.masq_iface,
-                        &nft_config.forwards,
-                        policy.as_ref(),
-                    )?;
-                    nft_mgr.apply_ruleset(&ruleset).await?;
+                    let snapshot = nft_mgr.apply_ruleset(table, &generated.ruleset).await?;
+                    context.record_nft_snapshot(table.clone(), snapshot);
                     context.record_action(action.clone());
                 }
             }
@@ -357,7 +375,11 @@ async fn apply_network_config(file: &str, commit: bool, confirm: u64) -> anyhow:
                     context.record_action(action.clone());
                 }
             }
-            PlanAction::CreateVlan { parent, vlan_id, name } => {
+            PlanAction::CreateVlan {
+                parent,
+                vlan_id,
+                name,
+            } => {
                 vlan_mgr.create_vlan(parent, *vlan_id, name).await?;
                 context.record_action(action.clone());
             }
@@ -370,9 +392,35 @@ async fn apply_network_config(file: &str, commit: bool, confirm: u64) -> anyhow:
 
     println!("\n✅ Configuration applied successfully!");
 
+    let record = context.to_rollback_record();
+    let record_path = rollback::save_record(&record)?;
+    println!("💾 Saved rollback snapshot to {}", record_path.display());
+
+    let rollback_mgr = RollbackManager::new(confirm);
+
+    if let Some(target) = probe.as_ref() {
+        let timeout_secs = probe_timeout.max(1);
+        println!(
+            "\n🔍 Probing connectivity to {} ({}s timeout)...",
+            target, timeout_secs
+        );
+
+        let reachable = rollback_mgr
+            .check_tcp_connectivity(target, timeout_secs)
+            .await?;
+
+        if reachable {
+            println!("✅ Connectivity probe succeeded");
+        } else {
+            println!("❌ Connectivity probe failed; rolling back changes");
+            execute_rollback(&context, &bridge_mgr, &addr_mgr, &nft_mgr, &dnsmasq_mgr).await?;
+            rollback::clear_record()?;
+            anyhow::bail!("Connectivity probe failed for {}", target);
+        }
+    }
+
     // Handle rollback confirmation
     if confirm > 0 {
-        let rollback_mgr = RollbackManager::new(confirm);
         let confirmed = rollback_mgr.wait_for_confirmation().await?;
 
         if !confirmed {
@@ -380,15 +428,99 @@ async fn apply_network_config(file: &str, commit: bool, confirm: u64) -> anyhow:
             println!("\n🔄 Rolling back configuration...");
 
             // Execute rollback using managers
-            execute_rollback(
-                &context,
-                &bridge_mgr,
-                &addr_mgr,
-                &nft_mgr,
-                &dnsmasq_mgr,
-            ).await?;
+            execute_rollback(&context, &bridge_mgr, &addr_mgr, &nft_mgr, &dnsmasq_mgr).await?;
+            rollback::clear_record()?;
 
             anyhow::bail!("Configuration rolled back due to timeout");
+        }
+    }
+
+    Ok(())
+}
+
+fn table_matches_filter(filter: &str, table: &str) -> bool {
+    let filter = filter.trim();
+    if filter.is_empty() {
+        return true;
+    }
+
+    let filter_lower = filter.to_ascii_lowercase();
+    let table_lower = table.to_ascii_lowercase();
+    table_lower.contains(&filter_lower)
+}
+
+fn print_diff(diff_text: &str) {
+    println!("   --- diff ---");
+    for line in diff_text.lines() {
+        println!("   {}", line);
+    }
+}
+
+async fn diff_network_config(file: &str, table_filter: Option<&str>) -> anyhow::Result<()> {
+    use std::path::Path;
+
+    println!("🔍 Loading topology from {}", file);
+    let topology = Topology::from_file(Path::new(file))?;
+    let plan = Plan::from_topology(&topology)?;
+    let nft_mgr = NftManager::new();
+    let profiles = gw_core::ProfileLoader::new().load_default_profiles();
+
+    let filter_owned = table_filter.map(|f| f.to_string());
+    let mut matched_any = false;
+
+    for action in &plan.actions {
+        if let PlanAction::CreateNftRuleset { table, .. } = action {
+            if let Some(filter) = filter_owned.as_deref() {
+                if !table_matches_filter(filter, table) {
+                    // Allow matching on network name as well
+                    if let Some(config) = nft_config_for_table(&topology, table) {
+                        if !table_matches_filter(filter, &config.network_name) {
+                            continue;
+                        }
+                    } else {
+                        continue;
+                    }
+                }
+            }
+
+            if let Some(generated) = generate_ruleset(&nft_mgr, &topology, table, &profiles)? {
+                matched_any = true;
+                println!("\n=== Table {} (network {}) ===", table, generated.network);
+                if let Some(policy_name) = &generated.policy_loaded {
+                    println!("   📜 Policy: {}", policy_name);
+                } else if let Some(missing) = &generated.policy_missing {
+                    println!(
+                        "   ⚠️  Policy '{}' not found; diff computed without policy",
+                        missing
+                    );
+                }
+
+                let diff = nft_mgr.diff_ruleset(table, &generated.ruleset).await?;
+                if diff.matches {
+                    println!("✅ Table is in sync with desired ruleset.");
+                } else {
+                    if diff.current_exists {
+                        println!("❌ Drift detected between desired and live rules.");
+                    } else {
+                        println!("❌ Table is missing from the system.");
+                    }
+
+                    if let Some(diff_text) = diff.diff.as_ref() {
+                        print_diff(diff_text);
+                    }
+                }
+            }
+        }
+    }
+
+    if !matched_any {
+        if let Some(filter) = table_filter {
+            println!(
+                "No nftables entries matched filter '{}' in plan {}.",
+                filter, file
+            );
+        } else {
+            println!("No nftables tables found in the generated plan.");
         }
     }
 
@@ -403,32 +535,40 @@ async fn execute_rollback(
     nft_mgr: &NftManager,
     dnsmasq_mgr: &DnsmasqManager,
 ) -> anyhow::Result<()> {
-    use gw_core::planner::Action as PlanAction;
+    use gw_core::RollbackOp;
 
-    // Process actions in reverse order
-    for action in context.actions_completed.iter().rev() {
-        match action {
-            PlanAction::CreateBridge { name, .. } => {
+    for op in context.rollback_operations() {
+        match op {
+            RollbackOp::DeleteBridge { name } => {
                 println!("  ⏪ Deleting bridge: {}", name);
-                if let Err(e) = bridge_mgr.delete_bridge(name).await {
+                if let Err(e) = bridge_mgr.delete_bridge(&name).await {
                     eprintln!("     ⚠️  Failed to delete bridge {}: {}", name, e);
                 }
             }
-            PlanAction::AddAddress { iface, addr } => {
+            RollbackOp::RemoveAddress { iface, addr } => {
                 println!("  ⏪ Removing address {} from {}", addr, iface);
-                if let Err(e) = addr_mgr.delete_address(iface, addr).await {
+                if let Err(e) = addr_mgr.delete_address(&iface, &addr).await {
                     eprintln!("     ⚠️  Failed to remove address: {}", e);
                 }
             }
-            PlanAction::CreateNftRuleset { table, .. } => {
-                println!("  ⏪ Deleting nftables table: {}", table);
-                if let Err(e) = nft_mgr.delete_table(table).await {
-                    eprintln!("     ⚠️  Failed to delete nftables table: {}", e);
+            RollbackOp::RestoreNft { table, snapshot } => {
+                let snapshot_ref = snapshot.as_ref().map(|s| s.as_str());
+                let action_desc = if snapshot_ref.is_some() {
+                    "Restoring"
+                } else {
+                    "Deleting"
+                };
+                println!("  ⏪ {} nftables table: {}", action_desc, table);
+                if let Err(e) = nft_mgr
+                    .restore_table_from_snapshot(&table, snapshot_ref)
+                    .await
+                {
+                    eprintln!("     ⚠️  Failed to revert nftables table: {}", e);
                 }
             }
-            PlanAction::StartDnsmasq { config_path } => {
-                println!("  ⏪ Deleting dnsmasq config: {}", config_path);
-                if let Err(e) = dnsmasq_mgr.delete_config(config_path) {
+            RollbackOp::DeleteDnsmasqConfig { path } => {
+                println!("  ⏪ Deleting dnsmasq config: {}", path);
+                if let Err(e) = dnsmasq_mgr.delete_config(&path) {
                     eprintln!("     ⚠️  Failed to delete config: {}", e);
                 }
                 // Restart dnsmasq to apply changes
@@ -436,15 +576,12 @@ async fn execute_rollback(
                     eprintln!("     ⚠️  Failed to restart dnsmasq: {}", e);
                 }
             }
-            PlanAction::CreateVlan { name, .. } => {
+            RollbackOp::DeleteVlan { name } => {
                 println!("  ⏪ Deleting VLAN: {}", name);
                 // VLANs are deleted when the bridge is deleted or can be deleted explicitly
-                if let Err(e) = bridge_mgr.delete_bridge(name).await {
+                if let Err(e) = bridge_mgr.delete_bridge(&name).await {
                     eprintln!("     ⚠️  Failed to delete VLAN: {}", e);
                 }
-            }
-            _ => {
-                // Other actions like EnableForwarding don't need explicit rollback
             }
         }
     }
@@ -459,7 +596,11 @@ fn extract_gateway_ip(cidr: &str, topology: &Topology) -> anyhow::Result<String>
     for (_name, network) in &topology.networks {
         if let gw_core::Network::Routed(routed) = network {
             if routed.cidr == cidr {
-                return Ok(format!("{}/{}", routed.gw_ip, cidr.split('/').nth(1).unwrap()));
+                return Ok(format!(
+                    "{}/{}",
+                    routed.gw_ip,
+                    cidr.split('/').nth(1).unwrap()
+                ));
             }
         }
     }
@@ -467,36 +608,53 @@ fn extract_gateway_ip(cidr: &str, topology: &Topology) -> anyhow::Result<String>
 }
 
 // Helper to get NFT config for a table
-struct NftConfig {
-    network_name: String,
-    cidr: String,
-    masq_iface: String,
-    forwards: Vec<(String, String)>,
-    policy_profile: Option<String>,
+struct GeneratedRuleset {
+    network: String,
+    ruleset: String,
+    policy_loaded: Option<String>,
+    policy_missing: Option<String>,
 }
 
-fn get_nft_config(topology: &Topology, _table_name: &str) -> anyhow::Result<Option<NftConfig>> {
-    // Extract network name from table name (e.g., "gw" -> look for routed networks)
-    for (name, network) in &topology.networks {
-        if let gw_core::Network::Routed(routed) = network {
-            if let Some(masq_out) = &routed.masq_out {
-                let forwards: Vec<(String, String)> = routed
-                    .forwards
-                    .iter()
-                    .map(|f| (f.public.clone(), f.dst.clone()))
-                    .collect();
+fn generate_ruleset(
+    nft_mgr: &NftManager,
+    topology: &Topology,
+    table: &str,
+    profiles: &std::collections::HashMap<String, gw_core::PolicyProfile>,
+) -> anyhow::Result<Option<GeneratedRuleset>> {
+    let Some(config) = nft_config_for_table(topology, table) else {
+        return Ok(None);
+    };
 
-                return Ok(Some(NftConfig {
-                    network_name: name.clone(),
-                    cidr: routed.cidr.clone(),
-                    masq_iface: masq_out.clone(),
-                    forwards,
-                    policy_profile: routed.policy_profile.clone(),
-                }));
-            }
+    let bridge_name = format!("br-{}", config.network_name);
+
+    let mut policy_loaded = None;
+    let mut policy_missing = None;
+    let policy = config.policy_profile.as_ref().and_then(|name| {
+        if let Some(profile) = profiles.get(name) {
+            policy_loaded = Some(name.clone());
+            Some(profile)
+        } else {
+            policy_missing = Some(name.clone());
+            None
         }
-    }
-    Ok(None)
+    });
+
+    let ruleset = nft_mgr.create_complete_ruleset(
+        table,
+        &bridge_name,
+        &config.cidr,
+        &config.gateway_ip,
+        &config.masq_iface,
+        &config.forwards,
+        policy,
+    )?;
+
+    Ok(Some(GeneratedRuleset {
+        network: config.network_name,
+        ruleset,
+        policy_loaded,
+        policy_missing,
+    }))
 }
 
 // Helper to get DNS config
@@ -506,10 +664,7 @@ struct DnsConfig {
     zones: Vec<String>,
 }
 
-fn get_dns_config(
-    topology: &Topology,
-    config_path: &str,
-) -> anyhow::Result<Option<DnsConfig>> {
+fn get_dns_config(topology: &Topology, config_path: &str) -> anyhow::Result<Option<DnsConfig>> {
     // Extract network name from config path
     // e.g., "/etc/dnsmasq.d/gw-nat_dev.conf" -> "nat_dev"
     for (name, network) in &topology.networks {
@@ -534,17 +689,69 @@ fn get_dns_config(
     Ok(None)
 }
 
+async fn run_snapshot_rollback(execute: bool) -> anyhow::Result<()> {
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+    use gw_dhcpdns::DnsmasqManager;
+    use gw_nft::NftManager;
+    use gw_nl::{AddressManager, BridgeManager};
+
+    let record_path = rollback::default_record_path()?;
+    let Some(record) = rollback::load_record()? else {
+        println!(
+            "ℹ️  No rollback snapshot found at {}",
+            record_path.display()
+        );
+        return Ok(());
+    };
+
+    let snapshot_time = UNIX_EPOCH + Duration::from_secs(record.created_at);
+    let age_secs = SystemTime::now()
+        .duration_since(snapshot_time)
+        .unwrap_or_else(|_| Duration::from_secs(0))
+        .as_secs();
+
+    println!(
+        "📦 Rollback snapshot ({} actions) saved {}s ago",
+        record.actions.len(),
+        age_secs
+    );
+    println!("📁 {}", record_path.display());
+
+    if let Some(plan) = &record.plan {
+        println!();
+        plan.display();
+    }
+
+    if !execute {
+        println!("\nRun with '--execute' to apply this rollback.");
+        return Ok(());
+    }
+
+    println!("\n🔄 Executing rollback from snapshot...");
+
+    let bridge_mgr = BridgeManager::new().await?;
+    let addr_mgr = AddressManager::new().await?;
+    let nft_mgr = NftManager::new();
+    let dnsmasq_mgr = DnsmasqManager::new();
+
+    let context = ExecutionContext::from_rollback_record(record);
+
+    execute_rollback(&context, &bridge_mgr, &addr_mgr, &nft_mgr, &dnsmasq_mgr).await?;
+    rollback::clear_record()?;
+    println!("✅ Snapshot rollback completed");
+
+    Ok(())
+}
+
 fn handle_vm_action(action: VmAction) -> anyhow::Result<()> {
     match action {
         VmAction::Attach { vm, net, tap } => {
-            tokio::runtime::Runtime::new()?.block_on(async {
-                attach_vm_to_network(&vm, &net, tap.as_deref()).await
-            })?;
+            tokio::runtime::Runtime::new()?
+                .block_on(async { attach_vm_to_network(&vm, &net, tap.as_deref()).await })?;
         }
         VmAction::List => {
-            tokio::runtime::Runtime::new()?.block_on(async {
-                list_vms().await
-            })?;
+            tokio::runtime::Runtime::new()?.block_on(async { list_vms().await })?;
         }
     }
     Ok(())
@@ -563,7 +770,10 @@ async fn list_vms() -> anyhow::Result<()> {
 
     println!("VMs ({}):\n", vms.len());
     for vm in vms {
-        let id_str = vm.id.map(|i| i.to_string()).unwrap_or_else(|| "-".to_string());
+        let id_str = vm
+            .id
+            .map(|i| i.to_string())
+            .unwrap_or_else(|| "-".to_string());
         println!("  {} {} [{}]", id_str, vm.name, vm.state);
         if !vm.interfaces.is_empty() {
             println!("    Interfaces: {}", vm.interfaces.join(", "));
@@ -605,7 +815,9 @@ fn handle_forward_action(action: ForwardAction) -> anyhow::Result<()> {
             };
 
             // Find the network
-            let network = topology.networks.get_mut(&net)
+            let network = topology
+                .networks
+                .get_mut(&net)
                 .ok_or_else(|| anyhow::anyhow!("Network '{}' not found in topology", net))?;
 
             // Add forward to the network
@@ -629,7 +841,10 @@ fn handle_forward_action(action: ForwardAction) -> anyhow::Result<()> {
                     println!("   Run 'gwarden net apply --commit' to activate");
                 }
                 _ => {
-                    anyhow::bail!("Network '{}' is not a routed network (only routed networks support port forwards)", net);
+                    anyhow::bail!(
+                        "Network '{}' is not a routed network (only routed networks support port forwards)",
+                        net
+                    );
                 }
             }
         }
@@ -642,7 +857,9 @@ fn handle_forward_action(action: ForwardAction) -> anyhow::Result<()> {
             };
 
             // Find the network
-            let network = topology.networks.get_mut(&net)
+            let network = topology
+                .networks
+                .get_mut(&net)
                 .ok_or_else(|| anyhow::anyhow!("Network '{}' not found in topology", net))?;
 
             // Remove forward from the network
@@ -701,9 +918,68 @@ fn handle_forward_action(action: ForwardAction) -> anyhow::Result<()> {
 
 fn handle_policy_action(action: PolicyAction) -> anyhow::Result<()> {
     match action {
-        PolicyAction::Set { net, profile } => {
-            println!("Setting policy {} for network {}", profile, net);
-            println!("(Policy application not yet fully implemented)");
+        PolicyAction::Set { net, profile, file } => {
+            use gw_core::{Network, ProfileLoader, Topology};
+
+            let path = std::path::Path::new(&file);
+            if !path.exists() {
+                anyhow::bail!("Topology file not found: {}", path.display());
+            }
+
+            let mut topology = Topology::from_file(path)?;
+
+            let profile_loader = ProfileLoader::new();
+            let profiles = profile_loader.load_default_profiles();
+
+            let profile_value = if matches!(profile.as_str(), "none" | "clear" | "off") {
+                None
+            } else {
+                match profiles.get(&profile) {
+                    Some(p) => Some(p.name.clone()),
+                    None => {
+                        anyhow::bail!("Policy profile '{}' not found", profile);
+                    }
+                }
+            };
+
+            let network = topology
+                .networks
+                .get_mut(&net)
+                .ok_or_else(|| anyhow::anyhow!("Network '{}' not found in topology", net))?;
+
+            match network {
+                Network::Routed(routed) => {
+                    routed.policy_profile = profile_value.clone();
+                }
+                Network::Bridge(bridge) => {
+                    bridge.policy_profile = profile_value.clone();
+                }
+                Network::Vxlan(_) => {
+                    anyhow::bail!("Policy profiles are not currently supported for VXLAN networks");
+                }
+            }
+
+            let yaml = serde_yaml::to_string(&topology)?;
+            std::fs::write(path, yaml)?;
+
+            match profile_value {
+                Some(name) => {
+                    println!(
+                        "✅ Updated policy for network '{}' to '{}' in {}",
+                        net,
+                        name,
+                        path.display()
+                    );
+                }
+                None => {
+                    println!(
+                        "✅ Cleared policy for network '{}' in {}",
+                        net,
+                        path.display()
+                    );
+                }
+            }
+            println!("   Run 'gwarden net apply --commit' to activate the changes.");
         }
         PolicyAction::List => {
             list_policy_profiles()?;
@@ -749,10 +1025,7 @@ async fn handle_metrics_action(action: MetricsAction) -> anyhow::Result<()> {
             use gw_metrics::{MetricsCollector, MetricsServer};
 
             // Parse port from address
-            let port: u16 = addr
-                .trim_start_matches(':')
-                .parse()
-                .unwrap_or(9138);
+            let port: u16 = addr.trim_start_matches(':').parse().unwrap_or(9138);
 
             println!("🚀 Starting metrics server on port {}...", port);
 

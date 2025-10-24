@@ -1,6 +1,6 @@
-use crate::diagnostics::{DiagnosticResult, DiagnosticLevel};
-use std::process::Command;
+use crate::diagnostics::{DiagnosticLevel, DiagnosticResult};
 use regex::Regex;
+use std::process::Command;
 
 /// nftables/iptables diagnostics
 pub struct NftablesDiagnostics {
@@ -37,10 +37,10 @@ impl NftablesDiagnostics {
                 DiagnosticResult::new(
                     DiagnosticLevel::Critical,
                     "nftables not found",
-                    "The nft command is not available on this system"
+                    "The nft command is not available on this system",
                 )
                 .with_suggestion("Install nftables package")
-                .with_command("sudo pacman -S nftables")
+                .with_command("sudo pacman -S nftables"),
             );
         }
 
@@ -69,10 +69,7 @@ impl NftablesDiagnostics {
     async fn check_nftables_ruleset(&self) -> anyhow::Result<Vec<DiagnosticResult>> {
         let mut results = Vec::new();
 
-        let output = Command::new("nft")
-            .arg("list")
-            .arg("ruleset")
-            .output()?;
+        let output = Command::new("nft").arg("list").arg("ruleset").output()?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -80,10 +77,10 @@ impl NftablesDiagnostics {
                 DiagnosticResult::new(
                     DiagnosticLevel::Error,
                     "Failed to list nftables ruleset",
-                    format!("Error: {}", stderr)
+                    format!("Error: {}", stderr),
                 )
                 .with_suggestion("Check if you have proper permissions")
-                .with_command("sudo nft list ruleset")
+                .with_command("sudo nft list ruleset"),
             );
             return Ok(results);
         }
@@ -92,40 +89,34 @@ impl NftablesDiagnostics {
 
         // Check if ruleset is empty
         if ruleset.trim().is_empty() {
-            results.push(
-                DiagnosticResult::new(
-                    DiagnosticLevel::Info,
-                    "No nftables rules found",
-                    "The nftables ruleset is empty"
-                )
-            );
+            results.push(DiagnosticResult::new(
+                DiagnosticLevel::Info,
+                "No nftables rules found",
+                "The nftables ruleset is empty",
+            ));
         } else {
-            results.push(
-                DiagnosticResult::new(
-                    DiagnosticLevel::Info,
-                    "nftables ruleset found",
-                    format!("Ruleset size: {} bytes", ruleset.len())
-                )
-            );
+            results.push(DiagnosticResult::new(
+                DiagnosticLevel::Info,
+                "nftables ruleset found",
+                format!("Ruleset size: {} bytes", ruleset.len()),
+            ));
         }
 
         // Check for ghostwarden tables
         if ruleset.contains("table inet gw") {
-            results.push(
-                DiagnosticResult::new(
-                    DiagnosticLevel::Info,
-                    "GhostWarden table found",
-                    "Found 'table inet gw' in ruleset"
-                )
-            );
+            results.push(DiagnosticResult::new(
+                DiagnosticLevel::Info,
+                "GhostWarden table found",
+                "Found 'table inet gw' in ruleset",
+            ));
         } else {
             results.push(
                 DiagnosticResult::new(
                     DiagnosticLevel::Warning,
                     "GhostWarden table not found",
-                    "No 'table inet gw' found - rules may not be applied"
+                    "No 'table inet gw' found - rules may not be applied",
                 )
-                .with_suggestion("Run 'gwarden net apply' to create tables")
+                .with_suggestion("Run 'gwarden net apply' to create tables"),
             );
         }
 
@@ -149,21 +140,19 @@ impl NftablesDiagnostics {
 
                 // Check for MASQUERADE rules
                 if chain.contains("masquerade") {
-                    results.push(
-                        DiagnosticResult::new(
-                            DiagnosticLevel::Info,
-                            "NAT masquerade found",
-                            "MASQUERADE rule is configured"
-                        )
-                    );
+                    results.push(DiagnosticResult::new(
+                        DiagnosticLevel::Info,
+                        "NAT masquerade found",
+                        "MASQUERADE rule is configured",
+                    ));
                 } else {
                     results.push(
                         DiagnosticResult::new(
                             DiagnosticLevel::Warning,
                             "No masquerade rule found",
-                            "NAT masquerading may not be working"
+                            "NAT masquerading may not be working",
                         )
-                        .with_suggestion("Check your topology YAML for masq_out configuration")
+                        .with_suggestion("Check your topology YAML for masq_out configuration"),
                     );
                 }
 
@@ -171,13 +160,11 @@ impl NftablesDiagnostics {
                 let iface_regex = Regex::new(r#"oifname\s+"([^"]+)""#).unwrap();
                 if let Some(cap) = iface_regex.captures(&chain) {
                     let iface = &cap[1];
-                    results.push(
-                        DiagnosticResult::new(
-                            DiagnosticLevel::Info,
-                            "NAT output interface",
-                            format!("Masquerading via interface: {}", iface)
-                        )
-                    );
+                    results.push(DiagnosticResult::new(
+                        DiagnosticLevel::Info,
+                        "NAT output interface",
+                        format!("Masquerading via interface: {}", iface),
+                    ));
                 }
             }
         }
@@ -189,10 +176,7 @@ impl NftablesDiagnostics {
         let mut results = Vec::new();
 
         // Check for duplicate chains
-        let output = Command::new("nft")
-            .arg("list")
-            .arg("ruleset")
-            .output()?;
+        let output = Command::new("nft").arg("list").arg("ruleset").output()?;
 
         if output.status.success() {
             let ruleset = String::from_utf8_lossy(&output.stdout);
@@ -204,10 +188,13 @@ impl NftablesDiagnostics {
                     DiagnosticResult::new(
                         DiagnosticLevel::Warning,
                         "Multiple postrouting chains detected",
-                        format!("Found {} postrouting chains - may cause conflicts", postrouting_count)
+                        format!(
+                            "Found {} postrouting chains - may cause conflicts",
+                            postrouting_count
+                        ),
                     )
                     .with_suggestion("Review your nftables configuration for conflicts")
-                    .with_command("nft list ruleset | grep -A5 'chain postrouting'")
+                    .with_command("nft list ruleset | grep -A5 'chain postrouting'"),
                 );
             }
 
@@ -217,9 +204,9 @@ impl NftablesDiagnostics {
                     DiagnosticResult::new(
                         DiagnosticLevel::Warning,
                         "Drop policy detected",
-                        "Found 'policy drop' - ensure explicit accept rules exist"
+                        "Found 'policy drop' - ensure explicit accept rules exist",
                     )
-                    .with_suggestion("Verify that necessary traffic is explicitly allowed")
+                    .with_suggestion("Verify that necessary traffic is explicitly allowed"),
                 );
             }
         }
@@ -243,7 +230,8 @@ impl NftablesDiagnostics {
                 let rules = String::from_utf8_lossy(&output.stdout);
 
                 // Look for non-empty chains
-                let has_rules = rules.lines()
+                let has_rules = rules
+                    .lines()
                     .filter(|line| !line.starts_with("Chain") && !line.starts_with("target"))
                     .any(|line| !line.trim().is_empty());
 
@@ -262,10 +250,7 @@ impl NftablesDiagnostics {
         }
 
         // Check iptables filter table
-        let output = Command::new("iptables")
-            .arg("-L")
-            .arg("-n")
-            .output();
+        let output = Command::new("iptables").arg("-L").arg("-n").output();
 
         if let Ok(output) = output {
             if output.status.success() {
@@ -276,9 +261,11 @@ impl NftablesDiagnostics {
                         DiagnosticResult::new(
                             DiagnosticLevel::Info,
                             "Docker iptables rules found",
-                            "Docker is managing iptables rules"
+                            "Docker is managing iptables rules",
                         )
-                        .with_suggestion("Docker and nftables can coexist, but be aware of rule precedence")
+                        .with_suggestion(
+                            "Docker and nftables can coexist, but be aware of rule precedence",
+                        ),
                     );
                 }
             }
@@ -298,59 +285,52 @@ impl NftablesDiagnostics {
         ];
 
         for (module, description) in required_modules {
-            let output = Command::new("lsmod")
-                .output()?;
+            let output = Command::new("lsmod").output()?;
 
             if output.status.success() {
                 let modules = String::from_utf8_lossy(&output.stdout);
 
                 if modules.contains(module) {
-                    results.push(
-                        DiagnosticResult::new(
-                            DiagnosticLevel::Info,
-                            format!("Kernel module: {}", module),
-                            format!("{} is loaded", description)
-                        )
-                    );
+                    results.push(DiagnosticResult::new(
+                        DiagnosticLevel::Info,
+                        format!("Kernel module: {}", module),
+                        format!("{} is loaded", description),
+                    ));
                 } else {
                     results.push(
                         DiagnosticResult::new(
                             DiagnosticLevel::Warning,
                             format!("Missing kernel module: {}", module),
-                            format!("{} is not loaded", description)
+                            format!("{} is not loaded", description),
                         )
                         .with_suggestion(format!("Load the module with: modprobe {}", module))
-                        .with_command(format!("sudo modprobe {}", module))
+                        .with_command(format!("sudo modprobe {}", module)),
                     );
                 }
             }
         }
 
         // Check sysctl settings for forwarding
-        let output = Command::new("sysctl")
-            .arg("net.ipv4.ip_forward")
-            .output();
+        let output = Command::new("sysctl").arg("net.ipv4.ip_forward").output();
 
         if let Ok(output) = output {
             if output.status.success() {
                 let value = String::from_utf8_lossy(&output.stdout);
                 if value.contains("= 1") {
-                    results.push(
-                        DiagnosticResult::new(
-                            DiagnosticLevel::Info,
-                            "IP forwarding enabled",
-                            "net.ipv4.ip_forward = 1"
-                        )
-                    );
+                    results.push(DiagnosticResult::new(
+                        DiagnosticLevel::Info,
+                        "IP forwarding enabled",
+                        "net.ipv4.ip_forward = 1",
+                    ));
                 } else {
                     results.push(
                         DiagnosticResult::new(
                             DiagnosticLevel::Error,
                             "IP forwarding disabled",
-                            "net.ipv4.ip_forward = 0 - routing will not work"
+                            "net.ipv4.ip_forward = 0 - routing will not work",
                         )
                         .with_suggestion("Enable IP forwarding for NAT and routing to work")
-                        .with_command("sudo sysctl -w net.ipv4.ip_forward=1")
+                        .with_command("sudo sysctl -w net.ipv4.ip_forward=1"),
                     );
                 }
             }
@@ -364,13 +344,11 @@ impl NftablesDiagnostics {
         if let Ok(output) = output {
             if output.status.success() {
                 let value = String::from_utf8_lossy(&output.stdout);
-                results.push(
-                    DiagnosticResult::new(
-                        DiagnosticLevel::Info,
-                        "Bridge netfilter setting",
-                        value.trim().to_string()
-                    )
-                );
+                results.push(DiagnosticResult::new(
+                    DiagnosticLevel::Info,
+                    "Bridge netfilter setting",
+                    value.trim().to_string(),
+                ));
             }
         }
 

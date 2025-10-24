@@ -15,8 +15,8 @@ impl ProfileLoader {
         let content = std::fs::read_to_string(path)
             .context(format!("Failed to read policy profile from {:?}", path))?;
 
-        let profile: PolicyProfile = serde_yaml::from_str(&content)
-            .context("Failed to parse policy profile YAML")?;
+        let profile: PolicyProfile =
+            serde_yaml::from_str(&content).context("Failed to parse policy profile YAML")?;
 
         Ok(profile)
     }

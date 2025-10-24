@@ -56,8 +56,8 @@ pub struct DnsConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PortForward {
-    pub public: String,  // "0.0.0.0:4022/tcp"
-    pub dst: String,     // "10.33.0.10:22"
+    pub public: String, // "0.0.0.0:4022/tcp"
+    pub dst: String,    // "10.33.0.10:22"
 }
 
 impl Topology {

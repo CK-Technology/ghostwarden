@@ -37,7 +37,11 @@ pub struct DiagnosticResult {
 }
 
 impl DiagnosticResult {
-    pub fn new(level: DiagnosticLevel, title: impl Into<String>, details: impl Into<String>) -> Self {
+    pub fn new(
+        level: DiagnosticLevel,
+        title: impl Into<String>,
+        details: impl Into<String>,
+    ) -> Self {
         Self {
             level,
             title: title.into(),
@@ -87,15 +91,15 @@ impl DiagnosticReport {
     }
 
     pub fn has_errors(&self) -> bool {
-        self.sections.iter().any(|(_, results)| {
-            results.iter().any(|r| r.level >= DiagnosticLevel::Error)
-        })
+        self.sections
+            .iter()
+            .any(|(_, results)| results.iter().any(|r| r.level >= DiagnosticLevel::Error))
     }
 
     pub fn has_warnings(&self) -> bool {
-        self.sections.iter().any(|(_, results)| {
-            results.iter().any(|r| r.level == DiagnosticLevel::Warning)
-        })
+        self.sections
+            .iter()
+            .any(|(_, results)| results.iter().any(|r| r.level == DiagnosticLevel::Warning))
     }
 
     pub fn display(&self) {
@@ -116,8 +120,8 @@ impl DiagnosticReport {
         }
 
         // Summary
-        let total_errors = self.count_by_level(DiagnosticLevel::Error) +
-                          self.count_by_level(DiagnosticLevel::Critical);
+        let total_errors = self.count_by_level(DiagnosticLevel::Error)
+            + self.count_by_level(DiagnosticLevel::Critical);
         let total_warnings = self.count_by_level(DiagnosticLevel::Warning);
 
         println!("\n━━━ Summary ━━━");
@@ -133,7 +137,8 @@ impl DiagnosticReport {
     }
 
     fn count_by_level(&self, level: DiagnosticLevel) -> usize {
-        self.sections.iter()
+        self.sections
+            .iter()
             .flat_map(|(_, results)| results.iter())
             .filter(|r| r.level == level)
             .count()

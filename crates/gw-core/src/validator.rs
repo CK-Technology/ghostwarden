@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use std::collections::HashSet;
 use std::net::IpAddr;
 
-use crate::topology::{Topology, Network, RoutedNetwork, BridgeNetwork, PortForward};
+use crate::topology::{Network, Topology};
 
 /// Validates a topology for correctness and safety
 pub struct TopologyValidator<'a> {
@@ -74,16 +74,24 @@ impl<'a> TopologyValidator<'a> {
         if parts1.len() != 2 {
             anyhow::bail!("Invalid CIDR format: {}", cidr1);
         }
-        let ip1: Ipv4Addr = parts1[0].parse().context(format!("Invalid IP in CIDR: {}", cidr1))?;
-        let prefix1: u8 = parts1[1].parse().context(format!("Invalid prefix in CIDR: {}", cidr1))?;
+        let ip1: Ipv4Addr = parts1[0]
+            .parse()
+            .context(format!("Invalid IP in CIDR: {}", cidr1))?;
+        let prefix1: u8 = parts1[1]
+            .parse()
+            .context(format!("Invalid prefix in CIDR: {}", cidr1))?;
 
         // Parse CIDR2
         let parts2: Vec<&str> = cidr2.split('/').collect();
         if parts2.len() != 2 {
             anyhow::bail!("Invalid CIDR format: {}", cidr2);
         }
-        let ip2: Ipv4Addr = parts2[0].parse().context(format!("Invalid IP in CIDR: {}", cidr2))?;
-        let prefix2: u8 = parts2[1].parse().context(format!("Invalid prefix in CIDR: {}", cidr2))?;
+        let ip2: Ipv4Addr = parts2[0]
+            .parse()
+            .context(format!("Invalid IP in CIDR: {}", cidr2))?;
+        let prefix2: u8 = parts2[1]
+            .parse()
+            .context(format!("Invalid prefix in CIDR: {}", cidr2))?;
 
         // Calculate network addresses
         let mask1 = (!0u32) << (32 - prefix1);
@@ -198,7 +206,9 @@ impl<'a> TopologyValidator<'a> {
                     }
 
                     // Validate gateway IP is in CIDR range
-                    if let Err(e) = Self::validate_gateway_in_cidr(&routed.gw_ip.to_string(), &routed.cidr) {
+                    if let Err(e) =
+                        Self::validate_gateway_in_cidr(&routed.gw_ip.to_string(), &routed.cidr)
+                    {
                         warnings.push(ValidationWarning::GatewayNotInCidr {
                             network: net_name.clone(),
                             gateway: routed.gw_ip.to_string(),
@@ -340,26 +350,48 @@ pub enum ValidationWarning {
 impl ValidationWarning {
     pub fn display(&self) {
         match self {
-            Self::CidrOverlap { net1, cidr1, net2, cidr2 } => {
+            Self::CidrOverlap {
+                net1,
+                cidr1,
+                net2,
+                cidr2,
+            } => {
                 println!("⚠️  CIDR overlap detected:");
                 println!("   {} ({}) overlaps with {} ({})", net1, cidr1, net2, cidr2);
             }
-            Self::InvalidPort { network, port_spec, reason } => {
+            Self::InvalidPort {
+                network,
+                port_spec,
+                reason,
+            } => {
                 println!("⚠️  Invalid port in network '{}':", network);
                 println!("   Port spec: {}", port_spec);
                 println!("   Reason: {}", reason);
             }
-            Self::InvalidDestination { network, dst_spec, reason } => {
+            Self::InvalidDestination {
+                network,
+                dst_spec,
+                reason,
+            } => {
                 println!("⚠️  Invalid destination in network '{}':", network);
                 println!("   Destination: {}", dst_spec);
                 println!("   Reason: {}", reason);
             }
-            Self::InvalidCidr { network, cidr, reason } => {
+            Self::InvalidCidr {
+                network,
+                cidr,
+                reason,
+            } => {
                 println!("⚠️  Invalid CIDR in network '{}':", network);
                 println!("   CIDR: {}", cidr);
                 println!("   Reason: {}", reason);
             }
-            Self::GatewayNotInCidr { network, gateway, cidr, reason } => {
+            Self::GatewayNotInCidr {
+                network,
+                gateway,
+                cidr,
+                reason,
+            } => {
                 println!("⚠️  Gateway not in CIDR range for network '{}':", network);
                 println!("   Gateway: {}", gateway);
                 println!("   CIDR: {}", cidr);
@@ -374,12 +406,11 @@ impl ValidationWarning {
 
     pub fn is_error(&self) -> bool {
         match self {
-            Self::InvalidPort { .. } |
-            Self::InvalidDestination { .. } |
-            Self::InvalidCidr { .. } |
-            Self::GatewayNotInCidr { .. } => true,
-            Self::CidrOverlap { .. } |
-            Self::DuplicateInterfaceName { .. } => false, // Warnings only
+            Self::InvalidPort { .. }
+            | Self::InvalidDestination { .. }
+            | Self::InvalidCidr { .. }
+            | Self::GatewayNotInCidr { .. } => true,
+            Self::CidrOverlap { .. } | Self::DuplicateInterfaceName { .. } => false, // Warnings only
         }
     }
 }
@@ -437,9 +468,13 @@ mod tests {
     #[test]
     fn test_gateway_in_cidr() {
         assert!(TopologyValidator::validate_gateway_in_cidr("10.0.0.1", "10.0.0.0/24").is_ok());
-        assert!(TopologyValidator::validate_gateway_in_cidr("192.168.1.1", "192.168.1.0/24").is_ok());
+        assert!(
+            TopologyValidator::validate_gateway_in_cidr("192.168.1.1", "192.168.1.0/24").is_ok()
+        );
 
         assert!(TopologyValidator::validate_gateway_in_cidr("10.0.1.1", "10.0.0.0/24").is_err());
-        assert!(TopologyValidator::validate_gateway_in_cidr("192.168.2.1", "192.168.1.0/24").is_err());
+        assert!(
+            TopologyValidator::validate_gateway_in_cidr("192.168.2.1", "192.168.1.0/24").is_err()
+        );
     }
 }

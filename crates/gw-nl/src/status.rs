@@ -32,13 +32,18 @@ impl StatusCollector {
 
             if let Some(name) = name {
                 // Check if it's a bridge
-                let is_bridge = link.attributes.iter().any(|attr| {
-                    matches!(attr, LinkAttribute::LinkInfo(_))
-                });
+                let is_bridge = link
+                    .attributes
+                    .iter()
+                    .any(|attr| matches!(attr, LinkAttribute::LinkInfo(_)));
 
                 if is_bridge || name.starts_with("br-") {
                     // Check if link is up by looking at flags
-                    let state = if link.header.flags.contains(&netlink_packet_route::link::LinkFlag::Up) {
+                    let state = if link
+                        .header
+                        .flags
+                        .contains(&netlink_packet_route::link::LinkFlag::Up)
+                    {
                         "UP"
                     } else {
                         "DOWN"
@@ -76,11 +81,8 @@ impl StatusCollector {
         while let Some(addr) = addrs.try_next().await? {
             for attr in &addr.attributes {
                 if let AddressAttribute::Address(ip) = attr {
-                    let addr_str = format!(
-                        "{}/{}",
-                        std::net::IpAddr::from(*ip),
-                        addr.header.prefix_len
-                    );
+                    let addr_str =
+                        format!("{}/{}", std::net::IpAddr::from(*ip), addr.header.prefix_len);
                     addresses.push(addr_str);
                 }
             }

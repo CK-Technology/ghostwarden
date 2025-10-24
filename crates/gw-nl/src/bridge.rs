@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
-use rtnetlink::{new_connection, Handle};
-use netlink_packet_route::link::{LinkAttribute, LinkFlag, LinkMessage};
 use futures::stream::TryStreamExt;
+use netlink_packet_route::link::{LinkAttribute, LinkFlag, LinkMessage};
+use rtnetlink::{Handle, new_connection};
 
 pub struct BridgeManager {
     handle: Handle,
@@ -87,9 +87,10 @@ impl BridgeManager {
 
             if let Some(name) = name {
                 // Check if it's a bridge by looking for bridge info
-                let is_bridge = link.attributes.iter().any(|attr| {
-                    matches!(attr, LinkAttribute::LinkInfo(_))
-                });
+                let is_bridge = link
+                    .attributes
+                    .iter()
+                    .any(|attr| matches!(attr, LinkAttribute::LinkInfo(_)));
                 if is_bridge {
                     bridges.push(name);
                 }
@@ -112,7 +113,12 @@ impl BridgeManager {
     }
 
     async fn get_link_message_by_name(&self, name: &str) -> Result<LinkMessage> {
-        let mut links = self.handle.link().get().match_name(name.to_string()).execute();
+        let mut links = self
+            .handle
+            .link()
+            .get()
+            .match_name(name.to_string())
+            .execute();
 
         if let Some(link) = links.try_next().await? {
             Ok(link)
@@ -196,11 +202,7 @@ impl BridgeManager {
     }
 
     /// Attach an interface to a bridge
-    pub async fn attach_interface_to_bridge(
-        &self,
-        interface: &str,
-        bridge: &str,
-    ) -> Result<()> {
+    pub async fn attach_interface_to_bridge(&self, interface: &str, bridge: &str) -> Result<()> {
         let iface_index = self.get_link_by_name(interface).await?;
         let bridge_index = self.get_link_by_name(bridge).await?;
 

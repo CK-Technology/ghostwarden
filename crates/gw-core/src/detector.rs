@@ -78,8 +78,11 @@ impl ConflictDetector {
                 return Ok(Some(Conflict {
                     service: "Docker".to_string(),
                     severity: ConflictSeverity::Info,
-                    description: "Docker is running and manages its own iptables/nftables rules".to_string(),
-                    suggestion: "Ensure ghostwarden rules don't conflict with Docker's network chains".to_string(),
+                    description: "Docker is running and manages its own iptables/nftables rules"
+                        .to_string(),
+                    suggestion:
+                        "Ensure ghostwarden rules don't conflict with Docker's network chains"
+                            .to_string(),
                 }));
             }
         }
@@ -90,10 +93,7 @@ impl ConflictDetector {
     async fn check_ufw(&self) -> Result<Option<Conflict>> {
         use tokio::process::Command;
 
-        let output = Command::new("ufw")
-            .arg("status")
-            .output()
-            .await?;
+        let output = Command::new("ufw").arg("status").output().await?;
 
         if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
@@ -101,8 +101,12 @@ impl ConflictDetector {
                 return Ok(Some(Conflict {
                     service: "UFW".to_string(),
                     severity: ConflictSeverity::Error,
-                    description: "UFW is active and will conflict with ghostwarden's nftables rules".to_string(),
-                    suggestion: "Disable UFW or migrate to ghostwarden's policy profiles: sudo ufw disable".to_string(),
+                    description:
+                        "UFW is active and will conflict with ghostwarden's nftables rules"
+                            .to_string(),
+                    suggestion:
+                        "Disable UFW or migrate to ghostwarden's policy profiles: sudo ufw disable"
+                            .to_string(),
                 }));
             }
         }
@@ -125,8 +129,11 @@ impl ConflictDetector {
                 return Ok(Some(Conflict {
                     service: "firewalld".to_string(),
                     severity: ConflictSeverity::Error,
-                    description: "firewalld is active and will conflict with ghostwarden's nftables rules".to_string(),
-                    suggestion: "Disable firewalld: sudo systemctl disable --now firewalld".to_string(),
+                    description:
+                        "firewalld is active and will conflict with ghostwarden's nftables rules"
+                            .to_string(),
+                    suggestion: "Disable firewalld: sudo systemctl disable --now firewalld"
+                        .to_string(),
                 }));
             }
         }
@@ -155,8 +162,13 @@ impl ConflictDetector {
                 return Ok(Some(Conflict {
                     service: "iptables".to_string(),
                     severity: ConflictSeverity::Warning,
-                    description: format!("Found {} iptables rules that may conflict with nftables", line_count).to_string(),
-                    suggestion: "Review existing iptables rules and consider migrating to nftables".to_string(),
+                    description: format!(
+                        "Found {} iptables rules that may conflict with nftables",
+                        line_count
+                    )
+                    .to_string(),
+                    suggestion: "Review existing iptables rules and consider migrating to nftables"
+                        .to_string(),
                 }));
             }
         }

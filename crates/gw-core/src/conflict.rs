@@ -22,9 +22,7 @@ pub enum ConflictSeverity {
 
 impl ConflictReport {
     pub fn new() -> Self {
-        Self {
-            conflicts: vec![],
-        }
+        Self { conflicts: vec![] }
     }
 
     pub fn add_conflict(&mut self, conflict: Conflict) {
@@ -49,7 +47,10 @@ impl ConflictReport {
             return;
         }
 
-        println!("⚠️  Detected {} potential conflicts:\n", self.conflicts.len());
+        println!(
+            "⚠️  Detected {} potential conflicts:\n",
+            self.conflicts.len()
+        );
 
         for (i, conflict) in self.conflicts.iter().enumerate() {
             let icon = match conflict.severity {
@@ -58,7 +59,13 @@ impl ConflictReport {
                 ConflictSeverity::Info => "ℹ️ ",
             };
 
-            println!("{}. {} {} - {}", i + 1, icon, conflict.service, conflict.description);
+            println!(
+                "{}. {} {} - {}",
+                i + 1,
+                icon,
+                conflict.service,
+                conflict.description
+            );
             println!("   💡 {}\n", conflict.suggestion);
         }
     }

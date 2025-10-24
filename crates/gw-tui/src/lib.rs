@@ -2,15 +2,15 @@ use anyhow::Result;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{
+    Frame, Terminal,
     backend::{Backend, CrosstermBackend},
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, Paragraph},
-    Frame, Terminal,
 };
 use std::io;
 
@@ -109,7 +109,11 @@ impl TuiApp {
 
         // Header
         let title = Paragraph::new("Ghostwarden TUI")
-            .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+            .style(
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )
             .block(Block::default().borders(Borders::ALL));
         f.render_widget(title, chunks[0]);
 
@@ -127,8 +131,8 @@ impl TuiApp {
             Span::raw("r: Refresh | "),
             Span::styled("q: Quit", Style::default().fg(Color::Red)),
         ]);
-        let footer = Paragraph::new(footer_text)
-            .block(Block::default().borders(Borders::ALL).title("Help"));
+        let footer =
+            Paragraph::new(footer_text).block(Block::default().borders(Borders::ALL).title("Help"));
         f.render_widget(footer, chunks[2]);
     }
 
@@ -138,12 +142,7 @@ impl TuiApp {
             .bridges
             .iter()
             .map(|b| {
-                let content = format!(
-                    "{} [{}] - {}",
-                    b.name,
-                    b.state,
-                    b.addresses.join(", ")
-                );
+                let content = format!("{} [{}] - {}", b.name, b.state, b.addresses.join(", "));
                 ListItem::new(content)
             })
             .collect();
@@ -181,7 +180,10 @@ impl TuiApp {
         let list = List::new(items)
             .block(
                 Block::default()
-                    .title(format!("nftables ({}) [Tab 2/3]", self.status.nftables.len()))
+                    .title(format!(
+                        "nftables ({}) [Tab 2/3]",
+                        self.status.nftables.len()
+                    ))
                     .borders(Borders::ALL)
                     .style(if self.selected_tab == 1 {
                         Style::default().fg(Color::Yellow)
@@ -213,7 +215,10 @@ impl TuiApp {
         let list = List::new(items)
             .block(
                 Block::default()
-                    .title(format!("DHCP Leases ({}) [Tab 3/3]", self.status.dhcp_leases.len()))
+                    .title(format!(
+                        "DHCP Leases ({}) [Tab 3/3]",
+                        self.status.dhcp_leases.len()
+                    ))
                     .borders(Borders::ALL)
                     .style(if self.selected_tab == 2 {
                         Style::default().fg(Color::Yellow)

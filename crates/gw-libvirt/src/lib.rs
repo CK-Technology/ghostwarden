@@ -132,7 +132,8 @@ impl LibvirtManager {
         tap_name: Option<&str>,
     ) -> Result<()> {
         let options = InterfaceOptions::default();
-        self.attach_vm_to_bridge_advanced(vm_name, bridge, tap_name, &options).await
+        self.attach_vm_to_bridge_advanced(vm_name, bridge, tap_name, &options)
+            .await
     }
 
     /// Attach VM to a bridge network with advanced options
@@ -145,10 +146,18 @@ impl LibvirtManager {
     ) -> Result<()> {
         use tokio::process::Command;
 
-        println!("Attaching VM {} to bridge {} with model {}", vm_name, bridge, options.model.as_str());
+        println!(
+            "Attaching VM {} to bridge {} with model {}",
+            vm_name,
+            bridge,
+            options.model.as_str()
+        );
 
         // Generate MAC address if not provided
-        let mac = options.mac_address.clone().unwrap_or_else(Self::generate_mac_address);
+        let mac = options
+            .mac_address
+            .clone()
+            .unwrap_or_else(Self::generate_mac_address);
 
         // Build interface XML
         let mut xml = format!(
@@ -202,7 +211,10 @@ impl LibvirtManager {
             anyhow::bail!("Failed to attach interface: {}", stderr);
         }
 
-        println!("✅ Attached VM {} to bridge {} (MAC: {})", vm_name, bridge, mac);
+        println!(
+            "✅ Attached VM {} to bridge {} (MAC: {})",
+            vm_name, bridge, mac
+        );
         Ok(())
     }
 
@@ -265,7 +277,10 @@ impl LibvirtManager {
             .output()
             .await?;
 
-        println!("✅ Created libvirt network '{}' on bridge {}", network_name, bridge_name);
+        println!(
+            "✅ Created libvirt network '{}' on bridge {}",
+            network_name, bridge_name
+        );
         Ok(())
     }
 

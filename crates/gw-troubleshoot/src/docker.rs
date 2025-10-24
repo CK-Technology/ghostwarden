@@ -1,6 +1,6 @@
-use crate::diagnostics::{DiagnosticResult, DiagnosticLevel};
-use std::process::Command;
+use crate::diagnostics::{DiagnosticLevel, DiagnosticResult};
 use serde::Deserialize;
+use std::process::Command;
 
 /// Docker networking diagnostics
 pub struct DockerDiagnostics {
@@ -32,13 +32,11 @@ impl DockerDiagnostics {
         let mut results = Vec::new();
 
         if !self.docker_available {
-            results.push(
-                DiagnosticResult::new(
-                    DiagnosticLevel::Info,
-                    "Docker not found",
-                    "Docker is not installed or not in PATH"
-                )
-            );
+            results.push(DiagnosticResult::new(
+                DiagnosticLevel::Info,
+                "Docker not found",
+                "Docker is not installed or not in PATH",
+            ));
             return Ok(results);
         }
 
@@ -74,21 +72,19 @@ impl DockerDiagnostics {
                 DiagnosticResult::new(
                     DiagnosticLevel::Warning,
                     "Docker daemon not accessible",
-                    "Cannot connect to Docker daemon"
+                    "Cannot connect to Docker daemon",
                 )
                 .with_suggestion("Ensure Docker daemon is running")
-                .with_command("sudo systemctl status docker")
+                .with_command("sudo systemctl status docker"),
             );
             return Ok(results);
         }
 
-        results.push(
-            DiagnosticResult::new(
-                DiagnosticLevel::Info,
-                "Docker daemon running",
-                "Docker daemon is accessible"
-            )
-        );
+        results.push(DiagnosticResult::new(
+            DiagnosticLevel::Info,
+            "Docker daemon running",
+            "Docker daemon is accessible",
+        ));
 
         // Parse Docker info
         let info = String::from_utf8_lossy(&output.stdout);
@@ -99,9 +95,9 @@ impl DockerDiagnostics {
                 DiagnosticResult::new(
                     DiagnosticLevel::Info,
                     "Docker iptables integration enabled",
-                    "Docker is managing iptables rules"
+                    "Docker is managing iptables rules",
                 )
-                .with_suggestion("This may interact with nftables - ensure proper rule precedence")
+                .with_suggestion("This may interact with nftables - ensure proper rule precedence"),
             );
         }
 
@@ -125,25 +121,21 @@ impl DockerDiagnostics {
         let networks_output = String::from_utf8_lossy(&output.stdout);
         let network_count = networks_output.lines().count();
 
-        results.push(
-            DiagnosticResult::new(
-                DiagnosticLevel::Info,
-                "Docker networks found",
-                format!("Found {} Docker network(s)", network_count)
-            )
-        );
+        results.push(DiagnosticResult::new(
+            DiagnosticLevel::Info,
+            "Docker networks found",
+            format!("Found {} Docker network(s)", network_count),
+        ));
 
         // Parse networks
         for line in networks_output.lines() {
             if let Ok(network) = serde_json::from_str::<DockerNetwork>(line) {
                 if network.driver == "bridge" && network.name != "bridge" {
-                    results.push(
-                        DiagnosticResult::new(
-                            DiagnosticLevel::Info,
-                            format!("Custom bridge network: {}", network.name),
-                            format!("Driver: {}, Scope: {}", network.driver, network.scope)
-                        )
-                    );
+                    results.push(DiagnosticResult::new(
+                        DiagnosticLevel::Info,
+                        format!("Custom bridge network: {}", network.name),
+                        format!("Driver: {}, Scope: {}", network.driver, network.scope),
+                    ));
                 }
             }
         }
@@ -162,13 +154,11 @@ impl DockerDiagnostics {
             .output()?;
 
         if output.status.success() {
-            results.push(
-                DiagnosticResult::new(
-                    DiagnosticLevel::Info,
-                    "Docker bridge (docker0) exists",
-                    "Default Docker bridge interface is present"
-                )
-            );
+            results.push(DiagnosticResult::new(
+                DiagnosticLevel::Info,
+                "Docker bridge (docker0) exists",
+                "Default Docker bridge interface is present",
+            ));
 
             // Get docker0 IP address
             let output = Command::new("ip")
@@ -183,38 +173,31 @@ impl DockerDiagnostics {
                 // Extract IP address
                 for line in addr_info.lines() {
                     if line.contains("inet ") {
-                        let ip = line.trim()
-                            .split_whitespace()
-                            .nth(1)
-                            .unwrap_or("unknown");
+                        let ip = line.trim().split_whitespace().nth(1).unwrap_or("unknown");
 
-                        results.push(
-                            DiagnosticResult::new(
-                                DiagnosticLevel::Info,
-                                "Docker bridge IP",
-                                format!("docker0: {}", ip)
-                            )
-                        );
+                        results.push(DiagnosticResult::new(
+                            DiagnosticLevel::Info,
+                            "Docker bridge IP",
+                            format!("docker0: {}", ip),
+                        ));
                     }
                 }
 
                 // Check if interface is up
                 if addr_info.contains("state UP") {
-                    results.push(
-                        DiagnosticResult::new(
-                            DiagnosticLevel::Info,
-                            "Docker bridge status",
-                            "docker0 is UP"
-                        )
-                    );
+                    results.push(DiagnosticResult::new(
+                        DiagnosticLevel::Info,
+                        "Docker bridge status",
+                        "docker0 is UP",
+                    ));
                 } else {
                     results.push(
                         DiagnosticResult::new(
                             DiagnosticLevel::Warning,
                             "Docker bridge down",
-                            "docker0 is not in UP state"
+                            "docker0 is not in UP state",
                         )
-                        .with_suggestion("Docker bridge may not be functioning properly")
+                        .with_suggestion("Docker bridge may not be functioning properly"),
                     );
                 }
             }
@@ -223,9 +206,9 @@ impl DockerDiagnostics {
                 DiagnosticResult::new(
                     DiagnosticLevel::Warning,
                     "Docker bridge (docker0) not found",
-                    "Default Docker bridge is missing"
+                    "Default Docker bridge is missing",
                 )
-                .with_suggestion("Docker may not be properly configured")
+                .with_suggestion("Docker may not be properly configured"),
             );
         }
 
@@ -252,13 +235,11 @@ impl DockerDiagnostics {
                         if let Some(subnet) = config[0].get("Subnet") {
                             let subnet_str = subnet.as_str().unwrap_or("unknown");
 
-                            results.push(
-                                DiagnosticResult::new(
-                                    DiagnosticLevel::Info,
-                                    "Docker bridge subnet",
-                                    format!("Default bridge subnet: {}", subnet_str)
-                                )
-                            );
+                            results.push(DiagnosticResult::new(
+                                DiagnosticLevel::Info,
+                                "Docker bridge subnet",
+                                format!("Default bridge subnet: {}", subnet_str),
+                            ));
 
                             // Check for common conflicts (e.g., 172.17.0.0/16)
                             if subnet_str.starts_with("172.17.") {
@@ -296,23 +277,18 @@ impl DockerDiagnostics {
         let mut results = Vec::new();
 
         // Check if iptables has DOCKER chains
-        let output = Command::new("iptables")
-            .arg("-L")
-            .arg("-n")
-            .output();
+        let output = Command::new("iptables").arg("-L").arg("-n").output();
 
         if let Ok(output) = output {
             if output.status.success() {
                 let rules = String::from_utf8_lossy(&output.stdout);
 
                 if rules.contains("Chain DOCKER") {
-                    results.push(
-                        DiagnosticResult::new(
-                            DiagnosticLevel::Info,
-                            "Docker iptables chains found",
-                            "Docker is managing its own iptables chains"
-                        )
-                    );
+                    results.push(DiagnosticResult::new(
+                        DiagnosticLevel::Info,
+                        "Docker iptables chains found",
+                        "Docker is managing its own iptables chains",
+                    ));
 
                     // Check DOCKER-USER chain
                     if rules.contains("Chain DOCKER-USER") {
@@ -330,21 +306,19 @@ impl DockerDiagnostics {
                         DiagnosticResult::new(
                             DiagnosticLevel::Warning,
                             "No Docker iptables chains",
-                            "Docker chains not found - iptables integration may be disabled"
+                            "Docker chains not found - iptables integration may be disabled",
                         )
-                        .with_suggestion("Check Docker daemon configuration for iptables setting")
+                        .with_suggestion("Check Docker daemon configuration for iptables setting"),
                     );
                 }
 
                 // Check for DOCKER-ISOLATION chains
                 if rules.contains("DOCKER-ISOLATION") {
-                    results.push(
-                        DiagnosticResult::new(
-                            DiagnosticLevel::Info,
-                            "Docker network isolation active",
-                            "DOCKER-ISOLATION chain is managing network separation"
-                        )
-                    );
+                    results.push(DiagnosticResult::new(
+                        DiagnosticLevel::Info,
+                        "Docker network isolation active",
+                        "DOCKER-ISOLATION chain is managing network separation",
+                    ));
                 }
             }
         }
@@ -361,7 +335,8 @@ impl DockerDiagnostics {
         if let Ok(output) = output {
             if output.status.success() {
                 let rules = String::from_utf8_lossy(&output.stdout);
-                let rule_count = rules.lines()
+                let rule_count = rules
+                    .lines()
                     .filter(|line| !line.starts_with("Chain") && !line.starts_with("target"))
                     .filter(|line| !line.trim().is_empty())
                     .count();
@@ -371,9 +346,9 @@ impl DockerDiagnostics {
                         DiagnosticResult::new(
                             DiagnosticLevel::Info,
                             "Docker NAT rules active",
-                            format!("Found {} Docker NAT rule(s)", rule_count)
+                            format!("Found {} Docker NAT rule(s)", rule_count),
                         )
-                        .with_command("iptables -t nat -L DOCKER -n -v")
+                        .with_command("iptables -t nat -L DOCKER -n -v"),
                     );
                 }
             }

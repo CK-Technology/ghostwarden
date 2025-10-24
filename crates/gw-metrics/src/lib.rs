@@ -1,8 +1,6 @@
 use anyhow::Result;
-use axum::{routing::get, Router};
-use prometheus::{
-    Encoder, GaugeVec, IntCounterVec, IntGaugeVec, Opts, Registry, TextEncoder,
-};
+use axum::{Router, routing::get};
+use prometheus::{Encoder, IntCounterVec, IntGaugeVec, Opts, Registry, TextEncoder};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -12,10 +10,6 @@ pub struct MetricsCollector {
 
     // Bridge metrics
     bridge_status: IntGaugeVec,
-    bridge_rx_bytes: GaugeVec,
-    bridge_tx_bytes: GaugeVec,
-    bridge_rx_errors: IntCounterVec,
-    bridge_tx_errors: IntCounterVec,
 
     // nftables metrics
     nft_tables_count: IntGaugeVec,
@@ -24,7 +18,6 @@ pub struct MetricsCollector {
 
     // DHCP metrics
     dhcp_leases_count: IntGaugeVec,
-    dhcp_lease_renewals: IntCounterVec,
 
     // Apply/rollback metrics
     apply_success: IntCounterVec,
@@ -38,34 +31,13 @@ impl MetricsCollector {
 
         // Bridge metrics
         let bridge_status = IntGaugeVec::new(
-            Opts::new("ghostwarden_bridge_status", "Bridge interface status (1=up, 0=down)"),
+            Opts::new(
+                "ghostwarden_bridge_status",
+                "Bridge interface status (1=up, 0=down)",
+            ),
             &["bridge_name"],
         )?;
         registry.register(Box::new(bridge_status.clone()))?;
-
-        let bridge_rx_bytes = GaugeVec::new(
-            Opts::new("ghostwarden_bridge_rx_bytes_total", "Total bytes received on bridge"),
-            &["bridge_name"],
-        )?;
-        registry.register(Box::new(bridge_rx_bytes.clone()))?;
-
-        let bridge_tx_bytes = GaugeVec::new(
-            Opts::new("ghostwarden_bridge_tx_bytes_total", "Total bytes transmitted on bridge"),
-            &["bridge_name"],
-        )?;
-        registry.register(Box::new(bridge_tx_bytes.clone()))?;
-
-        let bridge_rx_errors = IntCounterVec::new(
-            Opts::new("ghostwarden_bridge_rx_errors_total", "Total RX errors on bridge"),
-            &["bridge_name"],
-        )?;
-        registry.register(Box::new(bridge_rx_errors.clone()))?;
-
-        let bridge_tx_errors = IntCounterVec::new(
-            Opts::new("ghostwarden_bridge_tx_errors_total", "Total TX errors on bridge"),
-            &["bridge_name"],
-        )?;
-        registry.register(Box::new(bridge_tx_errors.clone()))?;
 
         // nftables metrics
         let nft_tables_count = IntGaugeVec::new(
@@ -88,32 +60,38 @@ impl MetricsCollector {
 
         // DHCP metrics
         let dhcp_leases_count = IntGaugeVec::new(
-            Opts::new("ghostwarden_dhcp_leases_count", "Number of active DHCP leases"),
+            Opts::new(
+                "ghostwarden_dhcp_leases_count",
+                "Number of active DHCP leases",
+            ),
             &["network"],
         )?;
         registry.register(Box::new(dhcp_leases_count.clone()))?;
 
-        let dhcp_lease_renewals = IntCounterVec::new(
-            Opts::new("ghostwarden_dhcp_lease_renewals_total", "Total DHCP lease renewals"),
-            &["network"],
-        )?;
-        registry.register(Box::new(dhcp_lease_renewals.clone()))?;
-
         // Apply/rollback metrics
         let apply_success = IntCounterVec::new(
-            Opts::new("ghostwarden_apply_success_total", "Total successful apply operations"),
+            Opts::new(
+                "ghostwarden_apply_success_total",
+                "Total successful apply operations",
+            ),
             &["topology"],
         )?;
         registry.register(Box::new(apply_success.clone()))?;
 
         let apply_failure = IntCounterVec::new(
-            Opts::new("ghostwarden_apply_failure_total", "Total failed apply operations"),
+            Opts::new(
+                "ghostwarden_apply_failure_total",
+                "Total failed apply operations",
+            ),
             &["topology", "reason"],
         )?;
         registry.register(Box::new(apply_failure.clone()))?;
 
         let rollback_triggered = IntCounterVec::new(
-            Opts::new("ghostwarden_rollback_triggered_total", "Total rollback operations"),
+            Opts::new(
+                "ghostwarden_rollback_triggered_total",
+                "Total rollback operations",
+            ),
             &["topology", "reason"],
         )?;
         registry.register(Box::new(rollback_triggered.clone()))?;
@@ -121,15 +99,10 @@ impl MetricsCollector {
         Ok(Self {
             registry,
             bridge_status,
-            bridge_rx_bytes,
-            bridge_tx_bytes,
-            bridge_rx_errors,
-            bridge_tx_errors,
             nft_tables_count,
             nft_chains_count,
             nft_rules_count,
             dhcp_leases_count,
-            dhcp_lease_renewals,
             apply_success,
             apply_failure,
             rollback_triggered,
@@ -140,7 +113,11 @@ impl MetricsCollector {
     pub fn update_bridge_metrics(&self, bridges: &[gw_core::BridgeStatus]) -> Result<()> {
         for bridge in bridges {
             // Update status (1 for UP, 0 for DOWN)
-            let status_value = if bridge.state.to_uppercase() == "UP" { 1 } else { 0 };
+            let status_value = if bridge.state.to_uppercase() == "UP" {
+                1
+            } else {
+                0
+            };
             self.bridge_status
                 .with_label_values(&[&bridge.name])
                 .set(status_value);
@@ -188,12 +165,16 @@ impl MetricsCollector {
 
     /// Record failed apply
     pub fn record_apply_failure(&self, topology: &str, reason: &str) {
-        self.apply_failure.with_label_values(&[topology, reason]).inc();
+        self.apply_failure
+            .with_label_values(&[topology, reason])
+            .inc();
     }
 
     /// Record rollback
     pub fn record_rollback(&self, topology: &str, reason: &str) {
-        self.rollback_triggered.with_label_values(&[topology, reason]).inc();
+        self.rollback_triggered
+            .with_label_values(&[topology, reason])
+            .inc();
     }
 
     /// Get the registry for HTTP server
@@ -250,7 +231,10 @@ impl MetricsServer {
             }),
         );
 
-        println!("📊 Metrics server listening on http://{}/metrics", self.addr);
+        println!(
+            "📊 Metrics server listening on http://{}/metrics",
+            self.addr
+        );
 
         let listener = tokio::net::TcpListener::bind(self.addr).await?;
         axum::serve(listener, app).await?;
@@ -274,9 +258,18 @@ mod tests {
         let collector = MetricsCollector::new().unwrap();
 
         // Set some test values first
-        collector.bridge_status.with_label_values(&["test-br0"]).set(1);
-        collector.nft_tables_count.with_label_values(&["inet"]).set(1);
-        collector.dhcp_leases_count.with_label_values(&["test-net"]).set(5);
+        collector
+            .bridge_status
+            .with_label_values(&["test-br0"])
+            .set(1);
+        collector
+            .nft_tables_count
+            .with_label_values(&["inet"])
+            .set(1);
+        collector
+            .dhcp_leases_count
+            .with_label_values(&["test-net"])
+            .set(5);
 
         let metrics = collector.render_metrics();
         assert!(metrics.is_ok());

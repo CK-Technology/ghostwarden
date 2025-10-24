@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use rtnetlink::{new_connection, Handle};
+use rtnetlink::{Handle, new_connection};
 
 pub struct VlanManager {
     handle: Handle,
@@ -20,7 +20,10 @@ impl VlanManager {
         vlan_id: u16,
         vlan_name: &str,
     ) -> Result<()> {
-        println!("Creating VLAN {} on {} (ID: {})", vlan_name, parent_iface, vlan_id);
+        println!(
+            "Creating VLAN {} on {} (ID: {})",
+            vlan_name, parent_iface, vlan_id
+        );
 
         // Get parent link index
         let parent_index = self.get_link_by_name(parent_iface).await?;
@@ -77,7 +80,10 @@ impl VlanManager {
             .controller(bridge_index)
             .execute()
             .await
-            .context(format!("Failed to attach VLAN {} to bridge {}", vlan_name, bridge_name))?;
+            .context(format!(
+                "Failed to attach VLAN {} to bridge {}",
+                vlan_name, bridge_name
+            ))?;
 
         println!("Attached VLAN {} to bridge {}", vlan_name, bridge_name);
         Ok(())
@@ -86,7 +92,12 @@ impl VlanManager {
     async fn get_link_by_name(&self, name: &str) -> Result<u32> {
         use futures::stream::TryStreamExt;
 
-        let mut links = self.handle.link().get().match_name(name.to_string()).execute();
+        let mut links = self
+            .handle
+            .link()
+            .get()
+            .match_name(name.to_string())
+            .execute();
 
         if let Some(link) = links.try_next().await? {
             Ok(link.header.index)

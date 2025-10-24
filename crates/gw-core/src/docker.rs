@@ -86,10 +86,7 @@ impl DockerBridgeManager {
     pub async fn is_docker_running(&self) -> bool {
         use tokio::process::Command;
 
-        let output = Command::new("docker")
-            .arg("info")
-            .output()
-            .await;
+        let output = Command::new("docker").arg("info").output().await;
 
         output.map(|o| o.status.success()).unwrap_or(false)
     }
@@ -126,7 +123,10 @@ impl DockerBridgeManager {
             .arg("--driver=bridge")
             .arg(&format!("--subnet={}", subnet))
             .arg(&format!("--gateway={}", gateway))
-            .arg(&format!("--opt=com.docker.network.bridge.name={}", bridge_name))
+            .arg(&format!(
+                "--opt=com.docker.network.bridge.name={}",
+                bridge_name
+            ))
             .arg(network_name)
             .output()
             .await
@@ -137,16 +137,15 @@ impl DockerBridgeManager {
             anyhow::bail!("Failed to create Docker network: {}", stderr);
         }
 
-        println!("Created Docker network '{}' on bridge {}", network_name, bridge_name);
+        println!(
+            "Created Docker network '{}' on bridge {}",
+            network_name, bridge_name
+        );
         Ok(())
     }
 
     /// Attach a Docker container to a Ghostwarden bridge
-    pub async fn attach_container_to_bridge(
-        &self,
-        container: &str,
-        network: &str,
-    ) -> Result<()> {
+    pub async fn attach_container_to_bridge(&self, container: &str, network: &str) -> Result<()> {
         use tokio::process::Command;
 
         let output = Command::new("docker")
@@ -163,7 +162,10 @@ impl DockerBridgeManager {
             anyhow::bail!("Failed to attach container: {}", stderr);
         }
 
-        println!("Attached container '{}' to network '{}'", container, network);
+        println!(
+            "Attached container '{}' to network '{}'",
+            container, network
+        );
         Ok(())
     }
 

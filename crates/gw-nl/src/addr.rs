@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use rtnetlink::{new_connection, Handle};
+use rtnetlink::{Handle, new_connection};
 use std::net::IpAddr;
 
 pub struct AddressManager {
@@ -77,7 +77,12 @@ impl AddressManager {
         let link_index = self.get_link_by_name(iface).await?;
 
         // Get existing addresses and find matching ones to delete
-        let mut addrs = self.handle.address().get().set_link_index_filter(link_index).execute();
+        let mut addrs = self
+            .handle
+            .address()
+            .get()
+            .set_link_index_filter(link_index)
+            .execute();
 
         while let Some(addr_msg) = addrs.try_next().await? {
             // Check if this address matches what we want to delete
@@ -120,7 +125,12 @@ impl AddressManager {
     async fn get_link_by_name(&self, name: &str) -> Result<u32> {
         use futures::stream::TryStreamExt;
 
-        let mut links = self.handle.link().get().match_name(name.to_string()).execute();
+        let mut links = self
+            .handle
+            .link()
+            .get()
+            .match_name(name.to_string())
+            .execute();
 
         if let Some(link) = links.try_next().await? {
             Ok(link.header.index)

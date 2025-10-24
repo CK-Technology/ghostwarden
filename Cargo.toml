@@ -58,3 +58,4 @@ virt = "0.3"
 
 # Regex
 regex = "1"
+similar = "2"

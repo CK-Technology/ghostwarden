@@ -1,9 +1,9 @@
 pub mod ruleset;
-pub mod table;
 pub mod status;
+pub mod table;
 
 pub use ruleset::*;
-pub use table::*;
 pub use status::*;
+pub use table::*;
 
 // nftables JSON emitter and applier

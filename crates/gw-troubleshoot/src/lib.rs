@@ -1,12 +1,12 @@
-pub mod nftables;
-pub mod docker;
 pub mod bridge;
 pub mod diagnostics;
+pub mod docker;
+pub mod nftables;
 
-pub use diagnostics::{DiagnosticReport, DiagnosticLevel, DiagnosticResult};
-pub use nftables::NftablesDiagnostics;
-pub use docker::DockerDiagnostics;
 pub use bridge::BridgeDiagnostics;
+pub use diagnostics::{DiagnosticLevel, DiagnosticReport, DiagnosticResult};
+pub use docker::DockerDiagnostics;
+pub use nftables::NftablesDiagnostics;
 
 /// Main troubleshooting interface
 pub struct Troubleshooter {

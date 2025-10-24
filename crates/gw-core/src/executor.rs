@@ -1,5 +1,7 @@
-use crate::planner::Action;
+use crate::planner::{Action, Plan};
+use crate::rollback::RollbackRecord;
 use anyhow::Result;
+use std::collections::HashMap;
 
 /// Executor trait for applying network changes
 pub struct Executor {
@@ -18,32 +20,13 @@ impl Executor {
         }
 
         match action {
-            Action::CreateBridge { .. } => {
-                println!("Executing: {}", action);
-                // Actual execution happens in the CLI layer with real managers
-                Ok(())
-            }
-            Action::AddAddress { .. } => {
-                println!("Executing: {}", action);
-                Ok(())
-            }
-            Action::EnableForwarding { .. } => {
-                println!("Executing: {}", action);
-                Ok(())
-            }
-            Action::CreateNftRuleset { .. } => {
-                println!("Executing: {}", action);
-                Ok(())
-            }
-            Action::StartDnsmasq { .. } => {
-                println!("Executing: {}", action);
-                Ok(())
-            }
-            Action::CreateVlan { .. } => {
-                println!("Executing: {}", action);
-                Ok(())
-            }
-            Action::AttachVlanToBridge { .. } => {
+            Action::CreateBridge { .. }
+            | Action::AddAddress { .. }
+            | Action::EnableForwarding { .. }
+            | Action::CreateNftRuleset { .. }
+            | Action::StartDnsmasq { .. }
+            | Action::CreateVlan { .. }
+            | Action::AttachVlanToBridge { .. } => {
                 println!("Executing: {}", action);
                 Ok(())
             }
@@ -55,6 +38,29 @@ impl Executor {
 pub struct ExecutionContext {
     pub actions_completed: Vec<Action>,
     pub rollback_enabled: bool,
+    pub nft_snapshots: HashMap<String, Option<String>>,
+    pub plan: Option<Plan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RollbackOp {
+    DeleteBridge {
+        name: String,
+    },
+    RemoveAddress {
+        iface: String,
+        addr: String,
+    },
+    RestoreNft {
+        table: String,
+        snapshot: Option<String>,
+    },
+    DeleteDnsmasqConfig {
+        path: String,
+    },
+    DeleteVlan {
+        name: String,
+    },
 }
 
 impl ExecutionContext {
@@ -62,6 +68,8 @@ impl ExecutionContext {
         Self {
             actions_completed: vec![],
             rollback_enabled,
+            nft_snapshots: HashMap::new(),
+            plan: None,
         }
     }
 
@@ -69,16 +77,114 @@ impl ExecutionContext {
         self.actions_completed.push(action);
     }
 
-    pub fn get_rollback_actions(&self) -> Vec<Action> {
-        // Generate rollback actions in reverse order
-        self.actions_completed
-            .iter()
-            .rev()
-            .filter_map(|_action| {
-                // To rollback bridge creation, we'd need a DeleteBridge action
-                // For now, just log what we'd rollback
-                None
-            })
-            .collect()
+    pub fn attach_plan(&mut self, plan: Plan) {
+        self.plan = Some(plan);
+    }
+
+    pub fn record_nft_snapshot(&mut self, table: String, snapshot: Option<String>) {
+        self.nft_snapshots.insert(table, snapshot);
+    }
+
+    pub fn nft_snapshot(&self, table: &str) -> Option<&Option<String>> {
+        self.nft_snapshots.get(table)
+    }
+
+    pub fn to_rollback_record(&self) -> RollbackRecord {
+        RollbackRecord::new(
+            self.plan.clone(),
+            self.actions_completed.clone(),
+            self.nft_snapshots.clone(),
+        )
+    }
+
+    pub fn from_rollback_record(record: RollbackRecord) -> Self {
+        Self {
+            actions_completed: record.actions,
+            rollback_enabled: true,
+            nft_snapshots: record.nft_snapshots,
+            plan: record.plan,
+        }
+    }
+
+    pub fn rollback_operations(&self) -> Vec<RollbackOp> {
+        let mut ops = Vec::new();
+
+        for action in self.actions_completed.iter().rev() {
+            match action {
+                Action::CreateBridge { name, .. } => {
+                    ops.push(RollbackOp::DeleteBridge { name: name.clone() });
+                }
+                Action::AddAddress { iface, addr } => {
+                    ops.push(RollbackOp::RemoveAddress {
+                        iface: iface.clone(),
+                        addr: addr.clone(),
+                    });
+                }
+                Action::CreateNftRuleset { table, .. } => {
+                    let snapshot = self.nft_snapshot(table).cloned().unwrap_or(None);
+                    ops.push(RollbackOp::RestoreNft {
+                        table: table.clone(),
+                        snapshot,
+                    });
+                }
+                Action::StartDnsmasq { config_path } => {
+                    ops.push(RollbackOp::DeleteDnsmasqConfig {
+                        path: config_path.clone(),
+                    });
+                }
+                Action::CreateVlan { name, .. } => {
+                    ops.push(RollbackOp::DeleteVlan { name: name.clone() });
+                }
+                Action::EnableForwarding { .. } | Action::AttachVlanToBridge { .. } => {
+                    // No direct rollback operation or handled elsewhere
+                }
+            }
+        }
+
+        ops
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rollback_operations_include_snapshot() {
+        let mut ctx = ExecutionContext::new(true);
+        ctx.record_action(Action::CreateNftRuleset {
+            table: "gw-nat".into(),
+            policy_profile: Some("routed-tight".into()),
+        });
+        ctx.record_nft_snapshot("gw-nat".into(), Some("snapshot".into()));
+
+        let ops = ctx.rollback_operations();
+        assert_eq!(ops.len(), 1);
+        match &ops[0] {
+            RollbackOp::RestoreNft { table, snapshot } => {
+                assert_eq!(table, "gw-nat");
+                assert_eq!(snapshot.as_deref(), Some("snapshot"));
+            }
+            other => panic!("unexpected op: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn rollback_operations_handle_missing_snapshot() {
+        let mut ctx = ExecutionContext::new(true);
+        ctx.record_action(Action::CreateNftRuleset {
+            table: "gw-nat".into(),
+            policy_profile: None,
+        });
+
+        let ops = ctx.rollback_operations();
+        assert_eq!(ops.len(), 1);
+        match &ops[0] {
+            RollbackOp::RestoreNft { table, snapshot } => {
+                assert_eq!(table, "gw-nat");
+                assert!(snapshot.is_none());
+            }
+            other => panic!("unexpected op: {:?}", other),
+        }
     }
 }

@@ -8,12 +8,7 @@ impl DnsmasqManager {
         Self
     }
 
-    pub fn generate_config(
-        &self,
-        bridge: &str,
-        cidr: &str,
-        zones: &[String],
-    ) -> Result<String> {
+    pub fn generate_config(&self, bridge: &str, cidr: &str, zones: &[String]) -> Result<String> {
         // Parse CIDR to get network range for DHCP
         let (network, prefix) = parse_cidr(cidr)?;
         let dhcp_range = calculate_dhcp_range(&network, prefix)?;

@@ -1,6 +1,6 @@
-use crate::diagnostics::{DiagnosticResult, DiagnosticLevel};
-use std::process::Command;
+use crate::diagnostics::{DiagnosticLevel, DiagnosticResult};
 use regex::Regex;
+use std::process::Command;
 
 /// Bridge networking diagnostics
 pub struct BridgeDiagnostics;
@@ -42,22 +42,20 @@ impl BridgeDiagnostics {
             .unwrap_or(false);
 
         if ip_available {
-            results.push(
-                DiagnosticResult::new(
-                    DiagnosticLevel::Info,
-                    "iproute2 tools available",
-                    "The 'ip' command is available for network configuration"
-                )
-            );
+            results.push(DiagnosticResult::new(
+                DiagnosticLevel::Info,
+                "iproute2 tools available",
+                "The 'ip' command is available for network configuration",
+            ));
         } else {
             results.push(
                 DiagnosticResult::new(
                     DiagnosticLevel::Critical,
                     "iproute2 not found",
-                    "The 'ip' command is required but not found"
+                    "The 'ip' command is required but not found",
                 )
                 .with_suggestion("Install iproute2 package")
-                .with_command("sudo pacman -S iproute2")
+                .with_command("sudo pacman -S iproute2"),
             );
         }
 
@@ -69,13 +67,11 @@ impl BridgeDiagnostics {
             .unwrap_or(false);
 
         if brctl_available {
-            results.push(
-                DiagnosticResult::new(
-                    DiagnosticLevel::Info,
-                    "bridge-utils available",
-                    "Legacy 'brctl' command is available"
-                )
-            );
+            results.push(DiagnosticResult::new(
+                DiagnosticLevel::Info,
+                "bridge-utils available",
+                "Legacy 'brctl' command is available",
+            ));
         }
 
         Ok(results)
@@ -97,9 +93,9 @@ impl BridgeDiagnostics {
                 DiagnosticResult::new(
                     DiagnosticLevel::Error,
                     "Failed to list bridges",
-                    "Could not retrieve bridge interfaces"
+                    "Could not retrieve bridge interfaces",
                 )
-                .with_command("ip link show type bridge")
+                .with_command("ip link show type bridge"),
             );
             return Ok(results);
         }
@@ -121,18 +117,20 @@ impl BridgeDiagnostics {
                 DiagnosticResult::new(
                     DiagnosticLevel::Warning,
                     "No bridges found",
-                    "No bridge interfaces are configured on this system"
+                    "No bridge interfaces are configured on this system",
                 )
-                .with_suggestion("Create bridges using 'gwarden net apply'")
+                .with_suggestion("Create bridges using 'gwarden net apply'"),
             );
         } else {
-            results.push(
-                DiagnosticResult::new(
-                    DiagnosticLevel::Info,
-                    "Bridges found",
-                    format!("Found {} bridge interface(s): {}", bridge_names.len(), bridge_names.join(", "))
-                )
-            );
+            results.push(DiagnosticResult::new(
+                DiagnosticLevel::Info,
+                "Bridges found",
+                format!(
+                    "Found {} bridge interface(s): {}",
+                    bridge_names.len(),
+                    bridge_names.join(", ")
+                ),
+            ));
 
             // Check each bridge in detail
             for bridge in &bridge_names {
@@ -158,37 +156,34 @@ impl BridgeDiagnostics {
 
             // Check if bridge is UP
             if details.contains("state UP") {
-                results.push(
-                    DiagnosticResult::new(
-                        DiagnosticLevel::Info,
-                        format!("Bridge {} status", bridge),
-                        "State: UP"
-                    )
-                );
+                results.push(DiagnosticResult::new(
+                    DiagnosticLevel::Info,
+                    format!("Bridge {} status", bridge),
+                    "State: UP",
+                ));
             } else if details.contains("state DOWN") {
                 results.push(
                     DiagnosticResult::new(
                         DiagnosticLevel::Warning,
                         format!("Bridge {} is DOWN", bridge),
-                        "Bridge interface is not active"
+                        "Bridge interface is not active",
                     )
                     .with_suggestion(format!("Bring up the bridge: ip link set {} up", bridge))
-                    .with_command(format!("sudo ip link set {} up", bridge))
+                    .with_command(format!("sudo ip link set {} up", bridge)),
                 );
             }
 
             // Extract MTU
-            if let Some(mtu) = details.split_whitespace()
+            if let Some(mtu) = details
+                .split_whitespace()
                 .skip_while(|s| *s != "mtu")
                 .nth(1)
             {
-                results.push(
-                    DiagnosticResult::new(
-                        DiagnosticLevel::Info,
-                        format!("Bridge {} MTU", bridge),
-                        format!("MTU: {}", mtu)
-                    )
-                );
+                results.push(DiagnosticResult::new(
+                    DiagnosticLevel::Info,
+                    format!("Bridge {} MTU", bridge),
+                    format!("MTU: {}", mtu),
+                ));
             }
         }
 
@@ -206,13 +201,11 @@ impl BridgeDiagnostics {
             for line in addr_output.lines() {
                 if line.trim().starts_with("inet ") {
                     if let Some(ip) = line.trim().split_whitespace().nth(1) {
-                        results.push(
-                            DiagnosticResult::new(
-                                DiagnosticLevel::Info,
-                                format!("Bridge {} IPv4", bridge),
-                                format!("IP: {}", ip)
-                            )
-                        );
+                        results.push(DiagnosticResult::new(
+                            DiagnosticLevel::Info,
+                            format!("Bridge {} IPv4", bridge),
+                            format!("IP: {}", ip),
+                        ));
                         has_ipv4 = true;
                     }
                 }
@@ -223,9 +216,11 @@ impl BridgeDiagnostics {
                     DiagnosticResult::new(
                         DiagnosticLevel::Warning,
                         format!("Bridge {} has no IP address", bridge),
-                        "Bridge may not function as a gateway"
+                        "Bridge may not function as a gateway",
                     )
-                    .with_suggestion("Assign an IP address to the bridge if it should act as a gateway")
+                    .with_suggestion(
+                        "Assign an IP address to the bridge if it should act as a gateway",
+                    ),
                 );
             }
         }
@@ -250,21 +245,17 @@ impl BridgeDiagnostics {
             }
 
             if ports.is_empty() {
-                results.push(
-                    DiagnosticResult::new(
-                        DiagnosticLevel::Info,
-                        format!("Bridge {} ports", bridge),
-                        "No ports attached"
-                    )
-                );
+                results.push(DiagnosticResult::new(
+                    DiagnosticLevel::Info,
+                    format!("Bridge {} ports", bridge),
+                    "No ports attached",
+                ));
             } else {
-                results.push(
-                    DiagnosticResult::new(
-                        DiagnosticLevel::Info,
-                        format!("Bridge {} ports", bridge),
-                        format!("{} port(s): {}", ports.len(), ports.join(", "))
-                    )
-                );
+                results.push(DiagnosticResult::new(
+                    DiagnosticLevel::Info,
+                    format!("Bridge {} ports", bridge),
+                    format!("{} port(s): {}", ports.len(), ports.join(", ")),
+                ));
             }
         }
 
@@ -300,18 +291,20 @@ impl BridgeDiagnostics {
                     DiagnosticResult::new(
                         DiagnosticLevel::Warning,
                         "No GhostWarden bridges found",
-                        "No bridges matching 'br-*' pattern found"
+                        "No bridges matching 'br-*' pattern found",
                     )
-                    .with_suggestion("Run 'gwarden net apply' to create network bridges")
+                    .with_suggestion("Run 'gwarden net apply' to create network bridges"),
                 );
             } else {
-                results.push(
-                    DiagnosticResult::new(
-                        DiagnosticLevel::Info,
-                        "GhostWarden bridges detected",
-                        format!("Found {} GhostWarden bridge(s): {}", gw_bridges.len(), gw_bridges.join(", "))
-                    )
-                );
+                results.push(DiagnosticResult::new(
+                    DiagnosticLevel::Info,
+                    "GhostWarden bridges detected",
+                    format!(
+                        "Found {} GhostWarden bridge(s): {}",
+                        gw_bridges.len(),
+                        gw_bridges.join(", ")
+                    ),
+                ));
             }
         }
 
@@ -323,15 +316,22 @@ impl BridgeDiagnostics {
 
         // Check bridge netfilter settings
         let br_nf_settings = vec![
-            ("net.bridge.bridge-nf-call-iptables", "Bridge iptables filtering"),
-            ("net.bridge.bridge-nf-call-ip6tables", "Bridge ip6tables filtering"),
-            ("net.bridge.bridge-nf-call-arptables", "Bridge arptables filtering"),
+            (
+                "net.bridge.bridge-nf-call-iptables",
+                "Bridge iptables filtering",
+            ),
+            (
+                "net.bridge.bridge-nf-call-ip6tables",
+                "Bridge ip6tables filtering",
+            ),
+            (
+                "net.bridge.bridge-nf-call-arptables",
+                "Bridge arptables filtering",
+            ),
         ];
 
         for (setting, description) in br_nf_settings {
-            let output = Command::new("sysctl")
-                .arg(setting)
-                .output();
+            let output = Command::new("sysctl").arg(setting).output();
 
             if let Ok(output) = output {
                 if output.status.success() {
@@ -342,18 +342,18 @@ impl BridgeDiagnostics {
                             DiagnosticResult::new(
                                 DiagnosticLevel::Info,
                                 format!("{} enabled", description),
-                                value.trim().to_string()
+                                value.trim().to_string(),
                             )
-                            .with_suggestion("Bridge traffic will be filtered by iptables/nftables")
+                            .with_suggestion(
+                                "Bridge traffic will be filtered by iptables/nftables",
+                            ),
                         );
                     } else {
-                        results.push(
-                            DiagnosticResult::new(
-                                DiagnosticLevel::Info,
-                                format!("{} disabled", description),
-                                value.trim().to_string()
-                            )
-                        );
+                        results.push(DiagnosticResult::new(
+                            DiagnosticLevel::Info,
+                            format!("{} disabled", description),
+                            value.trim().to_string(),
+                        ));
                     }
                 } else {
                     // br_netfilter module may not be loaded
@@ -361,10 +361,10 @@ impl BridgeDiagnostics {
                         DiagnosticResult::new(
                             DiagnosticLevel::Warning,
                             format!("Cannot read {}", setting),
-                            "br_netfilter module may not be loaded"
+                            "br_netfilter module may not be loaded",
                         )
                         .with_suggestion("Load module: modprobe br_netfilter")
-                        .with_command("sudo modprobe br_netfilter")
+                        .with_command("sudo modprobe br_netfilter"),
                     );
                 }
             }
@@ -412,18 +412,15 @@ impl BridgeDiagnostics {
                     DiagnosticResult::new(
                         DiagnosticLevel::Warning,
                         "Potential subnet overlap detected",
-                        format!("Found similar subnets: {}", duplicates.join(", "))
+                        format!("Found similar subnets: {}", duplicates.join(", ")),
                     )
-                    .with_suggestion("Ensure bridge subnets don't overlap")
+                    .with_suggestion("Ensure bridge subnets don't overlap"),
                 );
             }
         }
 
         // 2. Check for bridges without proper routing
-        let output = Command::new("ip")
-            .arg("route")
-            .arg("show")
-            .output()?;
+        let output = Command::new("ip").arg("route").arg("show").output()?;
 
         if output.status.success() {
             let routes = String::from_utf8_lossy(&output.stdout);
@@ -448,10 +445,12 @@ impl BridgeDiagnostics {
                             DiagnosticResult::new(
                                 DiagnosticLevel::Warning,
                                 format!("No routes for bridge {}", bridge),
-                                "Bridge has no associated routes"
+                                "Bridge has no associated routes",
                             )
-                            .with_suggestion("Routes are typically auto-created when IP is assigned")
-                            .with_command(format!("ip route show dev {}", bridge))
+                            .with_suggestion(
+                                "Routes are typically auto-created when IP is assigned",
+                            )
+                            .with_command(format!("ip route show dev {}", bridge)),
                         );
                     }
                 }
@@ -476,9 +475,9 @@ impl BridgeDiagnostics {
                     DiagnosticResult::new(
                         DiagnosticLevel::Info,
                         "veth pairs detected",
-                        format!("Found {} veth interface(s)", veth_count / 2)
+                        format!("Found {} veth interface(s)", veth_count / 2),
                     )
-                    .with_suggestion("veth pairs are used for container/VM networking")
+                    .with_suggestion("veth pairs are used for container/VM networking"),
                 );
             }
 
@@ -487,7 +486,8 @@ impl BridgeDiagnostics {
                 .lines()
                 .filter(|line| line.contains("state DOWN"))
                 .filter_map(|line| {
-                    veth_regex.captures(line)
+                    veth_regex
+                        .captures(line)
                         .and_then(|cap| cap.get(1))
                         .map(|m| m.as_str())
                 })
@@ -498,10 +498,14 @@ impl BridgeDiagnostics {
                     DiagnosticResult::new(
                         DiagnosticLevel::Warning,
                         "Inactive veth interfaces found",
-                        format!("Found {} DOWN veth interface(s): {}", down_veths.len(), down_veths.join(", "))
+                        format!(
+                            "Found {} DOWN veth interface(s): {}",
+                            down_veths.len(),
+                            down_veths.join(", ")
+                        ),
                     )
                     .with_suggestion("These may be orphaned interfaces from stopped containers/VMs")
-                    .with_command("ip link show type veth")
+                    .with_command("ip link show type veth"),
                 );
             }
         }
