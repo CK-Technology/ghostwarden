@@ -22,7 +22,7 @@
 
 ---
 
-> **Status - early beta.** Ghostwarden can plan and apply real host networking changes. Treat it as lab-first software until your topology, rollback path, and out-of-band access are tested.
+> **Status - experimental.** Ghostwarden can plan and apply real host networking changes. Treat it as lab-first software until your topology, rollback path, and out-of-band access are tested.
 
 ---
 
