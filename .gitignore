@@ -1,12 +1,26 @@
-.zig-cache/
-zig-out/
-*.o
-*.exe
 archive/
-
-# Added by cargo
-
-/target
+tasks/
 CLAUDE.md
-CODEX.md 
-TODO.md
+
+# Rust
+target/
+**/*.rs.bk
+*.pdb
+
+# Build artifacts
+debug/
+.cargo/
+*.o
+*.so
+*.rlib
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

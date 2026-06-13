@@ -27,21 +27,21 @@ impl NftStatusCollector {
         let mut tables = vec![];
         if let Some(nftables) = parsed.get("nftables").and_then(|n| n.as_array()) {
             for item in nftables {
-                if let Some(table) = item.get("table") {
-                    if let (Some(name), Some(family)) = (
+                if let Some(table) = item.get("table")
+                    && let (Some(name), Some(family)) = (
                         table.get("name").and_then(|n| n.as_str()),
                         table.get("family").and_then(|f| f.as_str()),
-                    ) {
-                        // Get chain and rule counts for this table
-                        let (chains, rules) = self.count_chains_and_rules(family, name).await?;
+                    )
+                {
+                    // Get chain and rule counts for this table
+                    let (chains, rules) = self.count_chains_and_rules(family, name).await?;
 
-                        tables.push(NftTableStatus {
-                            name: name.to_string(),
-                            family: family.to_string(),
-                            chains,
-                            rules,
-                        });
-                    }
+                    tables.push(NftTableStatus {
+                        name: name.to_string(),
+                        family: family.to_string(),
+                        chains,
+                        rules,
+                    });
                 }
             }
         }

@@ -15,7 +15,6 @@ tracing.workspace = true
 
 # Netlink for interface inspection
 rtnetlink.workspace = true
-netlink-packet-route.workspace = true
 
 # For running system commands
-regex = "1"
+regex.workspace = true

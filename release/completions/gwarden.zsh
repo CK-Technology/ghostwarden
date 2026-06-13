@@ -9,7 +9,6 @@ _gwarden() {
         'policy:Security policy management'
         'metrics:Prometheus metrics server'
         'doctor:Network diagnostics'
-        'graph:Topology visualization'
         'tui:Terminal UI dashboard'
         'help:Print help information'
     )
@@ -19,7 +18,10 @@ _gwarden() {
         'plan:Preview network changes'
         'apply:Apply network configuration'
         'status:Show current network status'
-        'rollback:Rollback to previous configuration'
+        'diff:Compare desired nftables rules with live system'
+        'rollback:Roll back the last applied snapshot'
+        'state:Show the persisted apply state'
+        'state-clear:Clear the persisted apply state'
     )
 
     local -a vm_cmds
@@ -46,6 +48,7 @@ _gwarden() {
         'nftables:Check nftables configuration'
         'docker:Check Docker networking'
         'bridges:Check bridge configuration'
+        'all:Run all diagnostics'
     )
 
     _arguments -C \
@@ -71,11 +74,26 @@ _gwarden() {
                             ;;
                         net_args)
                             case $words[1] in
-                                plan|apply)
+                                plan|apply|diff)
                                     _arguments \
+                                        '(-f --file)'{-f,--file}'[Topology file]:topology file:_files -g "*.(toml|yaml|yml)"' \
                                         '--commit[Actually apply changes]' \
-                                        '--confirm[Rollback timeout]:seconds:(10s 30s 60s 120s)' \
-                                        '1:topology file:_files -g "*.yaml"'
+                                        '--confirm[Auto-rollback window in seconds; 0 disables]:seconds:(0 10 30 60 120)' \
+                                        '--probe[Connectivity probe host:port]:address:' \
+                                        '--probe-timeout[Connectivity probe timeout]:seconds:' \
+                                        '--table[Table or network filter]:table:'
+                                    ;;
+                                rollback)
+                                    _arguments \
+                                        '--execute[Execute the rollback instead of previewing]'
+                                    ;;
+                                state)
+                                    _arguments \
+                                        '--json[Emit the apply state as JSON]'
+                                    ;;
+                                state-clear)
+                                    _arguments \
+                                        '--confirm[Required acknowledgement; clearing is irreversible]'
                                     ;;
                                 *)
                                     _message 'no more arguments'
@@ -131,8 +149,8 @@ _gwarden() {
                             ;;
                         pol_args)
                             local -a profiles
-                            if [[ -d /etc/ghostwarden/policies ]]; then
-                                profiles=(${(f)"$(ls /etc/ghostwarden/policies/*.yaml 2>/dev/null | xargs -n1 basename -s .yaml)"})
+                            if [[ -d /etc/gwarden/policies ]]; then
+                                profiles=(${(f)"$(ls /etc/gwarden/policies/*.toml 2>/dev/null | xargs -n1 basename -s .toml)"})
                             fi
                             _arguments \
                                 '--net[Network name]:network:' \
@@ -155,11 +173,6 @@ _gwarden() {
                             _describe 'doctor check' doctor_cmds
                             ;;
                     esac
-                    ;;
-                graph)
-                    _arguments \
-                        '--mermaid[Output Mermaid diagram]' \
-                        '1:topology file:_files -g "*.yaml"'
                     ;;
                 tui)
                     _message 'no arguments'

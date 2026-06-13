@@ -254,6 +254,7 @@ impl NftManager {
     }
 
     /// Generate a complete ruleset with NAT + policy filtering
+    #[allow(clippy::too_many_arguments)]
     pub fn create_complete_ruleset(
         &self,
         table_name: &str,
@@ -476,10 +477,10 @@ impl NftManager {
         let mut tables = vec![];
         if let Some(nftables) = parsed.get("nftables").and_then(|n| n.as_array()) {
             for item in nftables {
-                if let Some(table) = item.get("table") {
-                    if let Some(name) = table.get("name").and_then(|n| n.as_str()) {
-                        tables.push(name.to_string());
-                    }
+                if let Some(table) = item.get("table")
+                    && let Some(name) = table.get("name").and_then(|n| n.as_str())
+                {
+                    tables.push(name.to_string());
                 }
             }
         }

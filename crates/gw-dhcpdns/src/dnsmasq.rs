@@ -34,7 +34,7 @@ impl DnsmasqManager {
                 config.push_str(&format!("local=/{}/\n", zone));
                 config.push_str(&format!("domain={}\n", zone));
             }
-            config.push_str("\n");
+            config.push('\n');
         }
 
         // Additional settings

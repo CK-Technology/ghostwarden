@@ -1,85 +1,55 @@
 # Ghostwarden Documentation
 
-Pragmatic network orchestration for Arch Linux with nftables, libvirt, and Linux virtual networking.
+Ghostwarden manages Linux bridge, routed, VLAN, VXLAN, DHCP/DNS, nftables, and VM networking through a Rust CLI. This documentation is organized by workflow: install it, model a topology, apply it safely, observe the host, and troubleshoot failures.
 
-## Quick Links
+## Start Here
 
-- [Getting Started](guides/quickstart.md)
-- [Installation on Arch Linux](guides/arch-installation.md)
-- [Architecture Overview](architecture/overview.md)
-- [CLI Reference](reference/cli.md)
-- [Policy Profiles](reference/policy-profiles.md)
-- [Proxmox VE Integration](guides/proxmox-integration.md)
+- [Getting Started](getting-started/README.md)
+- [Installation](getting-started/installation.md)
+- [Configuration](getting-started/configuration.md)
+- [Quick Start](getting-started/quick-start.md)
+- [Production Readiness](operations/production-readiness.md)
 
-## What is Ghostwarden?
+## Documentation Map
 
-Ghostwarden is a network orchestration tool that helps you manage:
-- **Virtual networks** (bridges, VLANs, VXLAN)
-- **nftables firewall rules** with policy profiles
-- **DHCP/DNS** via dnsmasq
-- **Libvirt VM networking**
-- **NAT/routing** with port forwarding
+| Section | Purpose |
+|---------|---------|
+| [getting-started/](getting-started/README.md) | Install Ghostwarden and run a first safe plan/apply cycle. |
+| [architecture/](architecture/README.md) | Understand the workspace, planner, executor, nftables flow, and rollback model. |
+| [reference/](reference/README.md) | CLI commands, topology TOML/YAML, policy profiles, and nftables behavior. |
+| [operations/](operations/README.md) | Production checklist, observability, backups, rollback, and release packaging. |
+| [integrations/](integrations/README.md) | Proxmox, libvirt, Docker coexistence, CrowdSec, and Wazuh integration notes. |
+| [security/](security/README.md) | Threat model, policy hardening, privileges, and disclosure process. |
+| [troubleshooting/](troubleshooting/README.md) | `gwarden doctor`, common failures, examples, and support capture. |
 
-All with a crisp CLI, live TUI, and transactional apply with rollback.
+## Current Feature State
 
-## Documentation Structure
+| Capability | State |
+|------------|-------|
+| Topology parsing | Implemented |
+| Plan generation | Implemented |
+| Bridge and VLAN helpers | Implemented |
+| nftables ruleset generation | Implemented |
+| DHCP/DNS via dnsmasq | Partial |
+| Libvirt bridge attachment | Partial |
+| TUI status dashboard | Implemented |
+| Prometheus metrics | Implemented |
+| Atomic apply | Planned |
+| Persisted state database | Planned |
 
-```
-docs/
-├─ guides/
-│  ├─ quickstart.md                    # 5-minute setup
-│  ├─ arch-installation.md             # Arch Linux deployment
-│  ├─ proxmox-integration.md           # Proxmox VE setup
-│  ├─ migration-from-ufw.md            # Migrating from UFW
-│  └─ best-practices.md                # Production tips
-├─ reference/
-│  ├─ cli.md                           # All commands
-│  ├─ topology-yaml.md                 # ghostnet.yaml format
-│  ├─ policy-profiles.md               # Policy system
-│  └─ nftables-integration.md          # nftables details
-├─ architecture/
-│  ├─ overview.md                      # High-level design
-│  ├─ planner.md                       # Plan generation
-│  ├─ executor.md                      # Execution engine
-│  └─ rollback.md                      # Rollback mechanism
-└─ examples/
-   ├─ nat-dev-network.md               # Basic NAT setup
-   ├─ vlan-segmentation.md             # VLAN example
-   ├─ proxmox-cluster.md               # Proxmox example
-   └─ multi-tenant.md                  # Multi-tenant setup
-```
+## Host Safety Notes
 
-## Current Status
+Ghostwarden changes live network state. Before applying a topology:
 
-**Version:** 0.1.0
-**Edition:** Rust 2024
-**License:** MIT
-**Author:** Christopher Kelley <ckelley@ghostkellz.sh>
+- Keep out-of-band access available.
+- Run `gwarden net plan` until the output is understood.
+- Back up current nftables, routes, addresses, and NetworkManager profiles.
+- Start with a long rollback confirmation window.
+- Avoid first-time production runs over a single SSH session.
 
-### Implemented Features
+## Repository Links
 
-- ✅ Network topology IR (YAML-based)
-- ✅ Bridge/VLAN/VXLAN management (rtnetlink)
-- ✅ nftables ruleset generation (MASQUERADE, DNAT/SNAT)
-- ✅ DHCP/DNS via dnsmasq
-- ✅ Conflict detection (NetworkManager, Docker, UFW, firewalld)
-- ✅ Rollback with timeout
-- ✅ Libvirt VM attach/detach
-- ✅ Policy profiles (routed-tight, public-web, l2-lan)
-- ✅ Terminal UI (ratatui)
-- ✅ Network status reporting
-
-### Roadmap
-
-See [ROADMAP.md](../ROADMAP.md) for:
-- Production hardening checklist
-- Proxmox VE integration plans
-- eBPF flow monitoring
-- REST API + web GUI
-- Systemd daemon mode
-- Package formats (Arch PKGBUILD, .deb)
-
-## Support
-
-- **Issues:** https://github.com/ghostkellz/ghostwarden/issues
-- **Discussions:** https://github.com/ghostkellz/ghostwarden/discussions
+- Root README: [../README.md](../README.md)
+- Security policy: [../SECURITY.md](../SECURITY.md)
+- Contribution guide: [../CONTRIBUTING.md](../CONTRIBUTING.md)
+- Task backlog: [../tasks/todo.md](../tasks/todo.md)

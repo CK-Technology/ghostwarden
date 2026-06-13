@@ -194,30 +194,27 @@ impl<'a> TopologyValidator<'a> {
         let mut warnings = Vec::new();
 
         for (net_name, network) in &self.topology.networks {
-            match network {
-                Network::Routed(routed) => {
-                    // Validate CIDR
-                    if let Err(e) = Self::validate_cidr(&routed.cidr) {
-                        warnings.push(ValidationWarning::InvalidCidr {
-                            network: net_name.clone(),
-                            cidr: routed.cidr.clone(),
-                            reason: e.to_string(),
-                        });
-                    }
-
-                    // Validate gateway IP is in CIDR range
-                    if let Err(e) =
-                        Self::validate_gateway_in_cidr(&routed.gw_ip.to_string(), &routed.cidr)
-                    {
-                        warnings.push(ValidationWarning::GatewayNotInCidr {
-                            network: net_name.clone(),
-                            gateway: routed.gw_ip.to_string(),
-                            cidr: routed.cidr.clone(),
-                            reason: e.to_string(),
-                        });
-                    }
+            if let Network::Routed(routed) = network {
+                // Validate CIDR
+                if let Err(e) = Self::validate_cidr(&routed.cidr) {
+                    warnings.push(ValidationWarning::InvalidCidr {
+                        network: net_name.clone(),
+                        cidr: routed.cidr.clone(),
+                        reason: e.to_string(),
+                    });
                 }
-                _ => {}
+
+                // Validate gateway IP is in CIDR range
+                if let Err(e) =
+                    Self::validate_gateway_in_cidr(&routed.gw_ip.to_string(), &routed.cidr)
+                {
+                    warnings.push(ValidationWarning::GatewayNotInCidr {
+                        network: net_name.clone(),
+                        gateway: routed.gw_ip.to_string(),
+                        cidr: routed.cidr.clone(),
+                        reason: e.to_string(),
+                    });
+                }
             }
         }
 
@@ -287,13 +284,13 @@ impl<'a> TopologyValidator<'a> {
         let mut iface_names = HashSet::new();
 
         for (net_name, network) in &self.topology.networks {
-            if let Network::Bridge(bridge) = network {
-                if !iface_names.insert(bridge.iface.clone()) {
-                    warnings.push(ValidationWarning::DuplicateInterfaceName {
-                        name: bridge.iface.clone(),
-                        networks: vec![net_name.clone()], // Could track all conflicts
-                    });
-                }
+            if let Network::Bridge(bridge) = network
+                && !iface_names.insert(bridge.iface.clone())
+            {
+                warnings.push(ValidationWarning::DuplicateInterfaceName {
+                    name: bridge.iface.clone(),
+                    networks: vec![net_name.clone()], // Could track all conflicts
+                });
             }
         }
 

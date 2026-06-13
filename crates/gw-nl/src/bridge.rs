@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use futures::stream::TryStreamExt;
-use netlink_packet_route::link::{LinkAttribute, LinkFlag, LinkMessage};
-use rtnetlink::{Handle, new_connection};
+use rtnetlink::packet_route::link::{LinkAttribute, LinkFlags, LinkMessage};
+use rtnetlink::{Handle, LinkBridge, LinkUnspec, new_connection};
 
 pub struct BridgeManager {
     handle: Handle,
@@ -24,8 +24,7 @@ impl BridgeManager {
         // Create bridge
         self.handle
             .link()
-            .add()
-            .bridge(name.to_string())
+            .add(LinkBridge::new(name).build())
             .execute()
             .await
             .context(format!("Failed to create bridge {}", name))?;
@@ -36,8 +35,7 @@ impl BridgeManager {
         let link = self.get_link_by_name(name).await?;
         self.handle
             .link()
-            .set(link)
-            .up()
+            .set(LinkUnspec::new_with_index(link).up().build())
             .execute()
             .await
             .context(format!("Failed to set bridge {} up", name))?;
@@ -52,8 +50,7 @@ impl BridgeManager {
         // Set link down first
         self.handle
             .link()
-            .set(link)
-            .down()
+            .set(LinkUnspec::new_with_index(link).down().build())
             .execute()
             .await
             .context(format!("Failed to set bridge {} down", name))?;
@@ -71,7 +68,7 @@ impl BridgeManager {
     }
 
     pub async fn list_bridges(&self) -> Result<Vec<String>> {
-        use netlink_packet_route::link::LinkAttribute;
+        use rtnetlink::packet_route::link::LinkAttribute;
 
         let mut links = self.handle.link().get().execute();
         let mut bridges = Vec::new();
@@ -132,7 +129,7 @@ impl BridgeManager {
         let link = self.get_link_message_by_name(bridge_name).await?;
 
         // Get bridge state
-        let is_up = link.header.flags.contains(&LinkFlag::Up);
+        let is_up = link.header.flags.contains(LinkFlags::Up);
 
         // Get bridge members (ports)
         let members = self.get_bridge_members(bridge_name).await?;
@@ -165,18 +162,18 @@ impl BridgeManager {
         while let Some(link) = links.try_next().await? {
             // Check if this link is attached to our bridge (has this bridge as controller)
             for attr in &link.attributes {
-                if let LinkAttribute::Controller(controller_index) = attr {
-                    if *controller_index == bridge_index {
-                        // This link is attached to our bridge
-                        if let Some(name) = link.attributes.iter().find_map(|a| {
-                            if let LinkAttribute::IfName(n) = a {
-                                Some(n.clone())
-                            } else {
-                                None
-                            }
-                        }) {
-                            members.push(name);
+                if let LinkAttribute::Controller(controller_index) = attr
+                    && *controller_index == bridge_index
+                {
+                    // This link is attached to our bridge
+                    if let Some(name) = link.attributes.iter().find_map(|a| {
+                        if let LinkAttribute::IfName(n) = a {
+                            Some(n.clone())
+                        } else {
+                            None
                         }
+                    }) {
+                        members.push(name);
                     }
                 }
             }
@@ -191,8 +188,7 @@ impl BridgeManager {
 
         self.handle
             .link()
-            .set(link_index)
-            .mtu(mtu)
+            .set(LinkUnspec::new_with_index(link_index).mtu(mtu).build())
             .execute()
             .await
             .context(format!("Failed to set MTU for bridge {}", bridge_name))?;
@@ -208,8 +204,11 @@ impl BridgeManager {
 
         self.handle
             .link()
-            .set(iface_index)
-            .controller(bridge_index)
+            .set(
+                LinkUnspec::new_with_index(iface_index)
+                    .controller(bridge_index)
+                    .build(),
+            )
             .execute()
             .await
             .context(format!(
@@ -228,8 +227,11 @@ impl BridgeManager {
         // Setting controller to 0 detaches from bridge
         self.handle
             .link()
-            .set(link_index)
-            .controller(0)
+            .set(
+                LinkUnspec::new_with_index(link_index)
+                    .nocontroller()
+                    .build(),
+            )
             .execute()
             .await
             .context(format!("Failed to detach interface {}", interface))?;

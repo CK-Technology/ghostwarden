@@ -1,0 +1,40 @@
+[Unit]
+Description=GhostWarden Network Guardian
+Documentation=man:gwarden(1)
+Documentation=https://github.com/ghostkellz/ghostwarden
+After=network-online.target nftables.service
+Wants=network-online.target
+Before=libvirtd.service docker.service
+
+[Service]
+Type=simple
+Environment=GWARDEN_STATE_DIR=/var/lib/gwarden
+ExecStart=/usr/bin/gwarden net apply --file /etc/gwarden/ghostnet.toml --commit --confirm 0
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5s
+
+# Security hardening
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/gwarden /etc/gwarden
+ProtectKernelTunables=false
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictNamespaces=~user
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gwarden
+
+[Install]
+WantedBy=multi-user.target

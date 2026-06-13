@@ -121,9 +121,9 @@ impl DockerBridgeManager {
             .arg("network")
             .arg("create")
             .arg("--driver=bridge")
-            .arg(&format!("--subnet={}", subnet))
-            .arg(&format!("--gateway={}", gateway))
-            .arg(&format!(
+            .arg(format!("--subnet={}", subnet))
+            .arg(format!("--gateway={}", gateway))
+            .arg(format!(
                 "--opt=com.docker.network.bridge.name={}",
                 bridge_name
             ))

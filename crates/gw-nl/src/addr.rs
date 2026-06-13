@@ -57,7 +57,7 @@ impl AddressManager {
 
     pub async fn delete_address(&self, iface: &str, cidr: &str) -> Result<()> {
         use futures::stream::TryStreamExt;
-        use netlink_packet_route::address::AddressAttribute;
+        use rtnetlink::packet_route::address::AddressAttribute;
 
         // Parse CIDR notation
         let parts: Vec<&str> = cidr.split('/').collect();
@@ -95,11 +95,11 @@ impl AddressManager {
 
             // Check if the address matches
             for attr in &addr_msg.attributes {
-                if let AddressAttribute::Address(msg_addr) = attr {
-                    if *msg_addr == addr {
-                        matches = true;
-                        break;
-                    }
+                if let AddressAttribute::Address(msg_addr) = attr
+                    && *msg_addr == addr
+                {
+                    matches = true;
+                    break;
                 }
             }
 

@@ -7,7 +7,7 @@ _gwarden() {
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     # Top-level commands
-    local commands="net vm forward policy metrics doctor graph tui help"
+    local commands="net vm forward policy metrics doctor tui help"
 
     # If we're completing the first argument
     if [ $COMP_CWORD -eq 1 ]; then
@@ -20,18 +20,19 @@ _gwarden() {
 
     case "${subcommand}" in
         net)
-            local net_cmds="plan apply status rollback"
+            local net_cmds="plan apply status diff rollback state state-clear"
             if [ $COMP_CWORD -eq 2 ]; then
                 COMPREPLY=( $(compgen -W "${net_cmds}" -- ${cur}) )
-            elif [ $COMP_CWORD -eq 3 ]; then
-                # Complete with YAML files for plan/apply
-                COMPREPLY=( $(compgen -f -X '!*.yaml' -- ${cur}) )
-                COMPREPLY+=( $(compgen -f -X '!*.yml' -- ${cur}) )
             elif [[ "${prev}" == "--confirm" ]]; then
-                # Suggest time values
-                COMPREPLY=( $(compgen -W "10s 30s 60s 120s" -- ${cur}) )
+                # Suggest rollback-window values in seconds (0 disables the wait)
+                COMPREPLY=( $(compgen -W "0 10 30 60 120" -- ${cur}) )
+            elif [[ "${prev}" == "-f" || "${prev}" == "--file" ]]; then
+                # Complete with supported topology files for plan/apply/diff
+                COMPREPLY=( $(compgen -f -X '!*.toml' -- ${cur}) )
+                COMPREPLY+=( $(compgen -f -X '!*.yaml' -- ${cur}) )
+                COMPREPLY+=( $(compgen -f -X '!*.yml' -- ${cur}) )
             elif [[ "${cur}" == -* ]]; then
-                local opts="--commit --confirm --help"
+                local opts="--file --commit --confirm --probe --probe-timeout --table --execute --json --help"
                 COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
             fi
             ;;
@@ -58,9 +59,9 @@ _gwarden() {
             if [ $COMP_CWORD -eq 2 ]; then
                 COMPREPLY=( $(compgen -W "${pol_cmds}" -- ${cur}) )
             elif [[ "${prev}" == "--profile" ]]; then
-                # Suggest policy profiles from /etc/ghostwarden/policies/
-                if [ -d /etc/ghostwarden/policies ]; then
-                    local profiles=$(ls /etc/ghostwarden/policies/*.yaml 2>/dev/null | xargs -n1 basename -s .yaml)
+                # Suggest policy profiles from /etc/gwarden/policies/
+                if [ -d /etc/gwarden/policies ]; then
+                    local profiles=$(ls /etc/gwarden/policies/*.toml 2>/dev/null | xargs -n1 basename -s .toml)
                     COMPREPLY=( $(compgen -W "${profiles}" -- ${cur}) )
                 fi
             elif [[ "${cur}" == -* ]]; then
@@ -80,19 +81,11 @@ _gwarden() {
             fi
             ;;
         doctor)
-            local doc_cmds="nftables docker bridges"
+            local doc_cmds="nftables docker bridges all"
             if [ $COMP_CWORD -eq 2 ]; then
                 COMPREPLY=( $(compgen -W "${doc_cmds}" -- ${cur}) )
             elif [[ "${cur}" == -* ]]; then
                 COMPREPLY=( $(compgen -W "--help" -- ${cur}) )
-            fi
-            ;;
-        graph)
-            if [ $COMP_CWORD -eq 2 ]; then
-                COMPREPLY=( $(compgen -f -X '!*.yaml' -- ${cur}) )
-                COMPREPLY+=( $(compgen -f -X '!*.yml' -- ${cur}) )
-            elif [[ "${cur}" == -* ]]; then
-                COMPREPLY=( $(compgen -W "--mermaid --help" -- ${cur}) )
             fi
             ;;
         tui)

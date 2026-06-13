@@ -10,13 +10,13 @@ impl ProfileLoader {
         Self
     }
 
-    /// Load policy profile from YAML file
+    /// Load policy profile from TOML or YAML file.
     pub fn load_profile(&self, path: &Path) -> Result<PolicyProfile> {
         let content = std::fs::read_to_string(path)
             .context(format!("Failed to read policy profile from {:?}", path))?;
+        let format = crate::config_format::ConfigFormat::from_path(path)?;
 
-        let profile: PolicyProfile =
-            serde_yaml::from_str(&content).context("Failed to parse policy profile YAML")?;
+        let profile: PolicyProfile = crate::config_format::from_str(&content, format)?;
 
         Ok(profile)
     }
@@ -33,9 +33,7 @@ impl ProfileLoader {
             let entry = entry?;
             let path = entry.path();
 
-            if path.extension().and_then(|s| s.to_str()) == Some("yaml")
-                || path.extension().and_then(|s| s.to_str()) == Some("yml")
-            {
+            if crate::config_format::ConfigFormat::is_supported_path(&path) {
                 match self.load_profile(&path) {
                     Ok(profile) => {
                         profiles.insert(profile.name.clone(), profile);

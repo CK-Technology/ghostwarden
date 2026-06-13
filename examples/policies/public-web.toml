@@ -1,0 +1,25 @@
+name = "public-web"
+description = "Public web server policy - allow HTTP/HTTPS inbound"
+default_action = "drop"
+allowed_ingress_cidrs = ["0.0.0.0/0"]
+allowed_egress_cidrs = ["0.0.0.0/0"]
+
+[[services]]
+protocol = "tcp"
+port = 80
+
+[[services]]
+protocol = "tcp"
+port = 443
+
+[[services]]
+protocol = "udp"
+port = 53
+
+[[services]]
+protocol = "tcp"
+port = 80
+
+[[services]]
+protocol = "tcp"
+port = 443

@@ -1,0 +1,21 @@
+name = "routed-tight"
+description = "Tight NAT policy - only allow essential outbound traffic"
+default_action = "drop"
+allowed_egress_cidrs = ["0.0.0.0/0"]
+allowed_ingress_cidrs = []
+
+[[services]]
+protocol = "udp"
+port = 53
+
+[[services]]
+protocol = "tcp"
+port = 80
+
+[[services]]
+protocol = "tcp"
+port = 443
+
+[[services]]
+protocol = "udp"
+port = 123

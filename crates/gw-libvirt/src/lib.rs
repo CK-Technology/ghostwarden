@@ -51,9 +51,9 @@ impl LibvirtManager {
 
     /// Generate a random MAC address in the range 52:54:00:xx:xx:xx (libvirt default)
     pub fn generate_mac_address() -> String {
-        use rand::Rng;
-        let mut rng = rand::thread_rng();
-        let bytes: [u8; 3] = rng.r#gen();
+        use rand::RngExt;
+        let mut rng = rand::rng();
+        let bytes: [u8; 3] = rng.random();
         format!(
             "52:54:00:{:02x}:{:02x}:{:02x}",
             bytes[0], bytes[1], bytes[2]

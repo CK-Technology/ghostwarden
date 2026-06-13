@@ -11,6 +11,9 @@ pub const ROLLBACK_FILENAME: &str = "rollback.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RollbackRecord {
+    /// Correlates this snapshot with the matching apply-state record.
+    #[serde(default)]
+    pub transaction_id: String,
     pub created_at: u64,
     pub plan: Option<Plan>,
     pub actions: Vec<Action>,
@@ -19,6 +22,7 @@ pub struct RollbackRecord {
 
 impl RollbackRecord {
     pub fn new(
+        transaction_id: String,
         plan: Option<Plan>,
         actions: Vec<Action>,
         nft_snapshots: HashMap<String, Option<String>>,
@@ -29,6 +33,7 @@ impl RollbackRecord {
             .as_secs();
 
         Self {
+            transaction_id,
             created_at,
             plan,
             actions,
@@ -38,6 +43,10 @@ impl RollbackRecord {
 }
 
 pub fn default_state_dir() -> Result<PathBuf> {
+    if let Ok(path) = std::env::var("GWARDEN_STATE_DIR") {
+        return Ok(PathBuf::from(path));
+    }
+
     if let Ok(path) = std::env::var("XDG_STATE_HOME") {
         return Ok(PathBuf::from(path).join("gwarden"));
     }

@@ -54,7 +54,10 @@ impl TuiApp {
         Ok(())
     }
 
-    async fn run_loop<B: Backend>(&mut self, terminal: &mut Terminal<B>) -> Result<()> {
+    async fn run_loop<B: Backend>(&mut self, terminal: &mut Terminal<B>) -> Result<()>
+    where
+        B::Error: Send + Sync + 'static,
+    {
         loop {
             // Refresh status
             self.refresh_status().await?;
@@ -63,18 +66,18 @@ impl TuiApp {
             terminal.draw(|f| self.ui(f))?;
 
             // Handle input
-            if event::poll(std::time::Duration::from_millis(100))? {
-                if let Event::Key(key) = event::read()? {
-                    match key.code {
-                        KeyCode::Char('q') => return Ok(()),
-                        KeyCode::Char('r') => {
-                            // Refresh
-                        }
-                        KeyCode::Tab => {
-                            self.selected_tab = (self.selected_tab + 1) % 3;
-                        }
-                        _ => {}
+            if event::poll(std::time::Duration::from_millis(100))?
+                && let Event::Key(key) = event::read()?
+            {
+                match key.code {
+                    KeyCode::Char('q') => return Ok(()),
+                    KeyCode::Char('r') => {
+                        // Refresh
                     }
+                    KeyCode::Tab => {
+                        self.selected_tab = (self.selected_tab + 1) % 3;
+                    }
+                    _ => {}
                 }
             }
         }

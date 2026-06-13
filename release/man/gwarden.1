@@ -27,9 +27,6 @@ Prometheus metrics server
 .B doctor
 Network diagnostics and troubleshooting
 .TP
-.B graph
-Topology visualization (mermaid diagrams)
-.TP
 .B tui
 Terminal user interface for live monitoring
 .SH GLOBAL OPTIONS
@@ -45,7 +42,7 @@ Preview network changes:
 .B gwarden net plan
 .TP
 Apply configuration with rollback safety:
-.B sudo gwarden net apply \-\-commit \-\-confirm 30s
+.B sudo gwarden net apply \-\-commit \-\-confirm 30
 .TP
 Check current network status:
 .B gwarden net status
@@ -63,16 +60,16 @@ Launch TUI dashboard:
 .B gwarden tui
 .SH FILES
 .TP
-.I /etc/ghostwarden/ghostnet.yaml
+.I /etc/gwarden/ghostnet.toml
 Main topology configuration file
 .TP
-.I /etc/ghostwarden/daemon.toml
+.I /etc/gwarden/daemon.toml
 Daemon configuration
 .TP
-.I /etc/ghostwarden/policies/
+.I /etc/gwarden/policies/
 Policy profile definitions
 .TP
-.I /var/lib/ghostwarden/
+.I /var/lib/gwarden/
 State storage directory
 .SH SEE ALSO
 .BR gwarden-net (1),
@@ -81,7 +78,6 @@ State storage directory
 .BR gwarden-policy (1),
 .BR gwarden-metrics (1),
 .BR gwarden-doctor (1),
-.BR gwarden-graph (1),
 .BR nft (8),
 .BR dnsmasq (8),
 .BR systemd (1)

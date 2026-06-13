@@ -89,8 +89,9 @@ impl ExecutionContext {
         self.nft_snapshots.get(table)
     }
 
-    pub fn to_rollback_record(&self) -> RollbackRecord {
+    pub fn to_rollback_record(&self, transaction_id: String) -> RollbackRecord {
         RollbackRecord::new(
+            transaction_id,
             self.plan.clone(),
             self.actions_completed.clone(),
             self.nft_snapshots.clone(),

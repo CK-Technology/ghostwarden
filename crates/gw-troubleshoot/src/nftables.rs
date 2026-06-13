@@ -134,38 +134,38 @@ impl NftablesDiagnostics {
             .arg("postrouting")
             .output();
 
-        if let Ok(output) = output {
-            if output.status.success() {
-                let chain = String::from_utf8_lossy(&output.stdout);
+        if let Ok(output) = output
+            && output.status.success()
+        {
+            let chain = String::from_utf8_lossy(&output.stdout);
 
-                // Check for MASQUERADE rules
-                if chain.contains("masquerade") {
-                    results.push(DiagnosticResult::new(
-                        DiagnosticLevel::Info,
-                        "NAT masquerade found",
-                        "MASQUERADE rule is configured",
-                    ));
-                } else {
-                    results.push(
-                        DiagnosticResult::new(
-                            DiagnosticLevel::Warning,
-                            "No masquerade rule found",
-                            "NAT masquerading may not be working",
-                        )
-                        .with_suggestion("Check your topology YAML for masq_out configuration"),
-                    );
-                }
+            // Check for MASQUERADE rules
+            if chain.contains("masquerade") {
+                results.push(DiagnosticResult::new(
+                    DiagnosticLevel::Info,
+                    "NAT masquerade found",
+                    "MASQUERADE rule is configured",
+                ));
+            } else {
+                results.push(
+                    DiagnosticResult::new(
+                        DiagnosticLevel::Warning,
+                        "No masquerade rule found",
+                        "NAT masquerading may not be working",
+                    )
+                    .with_suggestion("Check your topology YAML for masq_out configuration"),
+                );
+            }
 
-                // Check output interface
-                let iface_regex = Regex::new(r#"oifname\s+"([^"]+)""#).unwrap();
-                if let Some(cap) = iface_regex.captures(&chain) {
-                    let iface = &cap[1];
-                    results.push(DiagnosticResult::new(
-                        DiagnosticLevel::Info,
-                        "NAT output interface",
-                        format!("Masquerading via interface: {}", iface),
-                    ));
-                }
+            // Check output interface
+            let iface_regex = Regex::new(r#"oifname\s+"([^"]+)""#).unwrap();
+            if let Some(cap) = iface_regex.captures(&chain) {
+                let iface = &cap[1];
+                results.push(DiagnosticResult::new(
+                    DiagnosticLevel::Info,
+                    "NAT output interface",
+                    format!("Masquerading via interface: {}", iface),
+                ));
             }
         }
 
@@ -225,18 +225,19 @@ impl NftablesDiagnostics {
             .arg("-n")
             .output();
 
-        if let Ok(output) = output {
-            if output.status.success() {
-                let rules = String::from_utf8_lossy(&output.stdout);
+        if let Ok(output) = output
+            && output.status.success()
+        {
+            let rules = String::from_utf8_lossy(&output.stdout);
 
-                // Look for non-empty chains
-                let has_rules = rules
-                    .lines()
-                    .filter(|line| !line.starts_with("Chain") && !line.starts_with("target"))
-                    .any(|line| !line.trim().is_empty());
+            // Look for non-empty chains
+            let has_rules = rules
+                .lines()
+                .filter(|line| !line.starts_with("Chain") && !line.starts_with("target"))
+                .any(|line| !line.trim().is_empty());
 
-                if has_rules {
-                    results.push(
+            if has_rules {
+                results.push(
                         DiagnosticResult::new(
                             DiagnosticLevel::Warning,
                             "iptables NAT rules detected",
@@ -245,29 +246,28 @@ impl NftablesDiagnostics {
                         .with_suggestion("Consider migrating iptables rules to nftables or ensuring they don't conflict")
                         .with_command("iptables -t nat -L -n -v")
                     );
-                }
             }
         }
 
         // Check iptables filter table
         let output = Command::new("iptables").arg("-L").arg("-n").output();
 
-        if let Ok(output) = output {
-            if output.status.success() {
-                let rules = String::from_utf8_lossy(&output.stdout);
+        if let Ok(output) = output
+            && output.status.success()
+        {
+            let rules = String::from_utf8_lossy(&output.stdout);
 
-                if rules.contains("DOCKER") || rules.contains("docker") {
-                    results.push(
-                        DiagnosticResult::new(
-                            DiagnosticLevel::Info,
-                            "Docker iptables rules found",
-                            "Docker is managing iptables rules",
-                        )
-                        .with_suggestion(
-                            "Docker and nftables can coexist, but be aware of rule precedence",
-                        ),
-                    );
-                }
+            if rules.contains("DOCKER") || rules.contains("docker") {
+                results.push(
+                    DiagnosticResult::new(
+                        DiagnosticLevel::Info,
+                        "Docker iptables rules found",
+                        "Docker is managing iptables rules",
+                    )
+                    .with_suggestion(
+                        "Docker and nftables can coexist, but be aware of rule precedence",
+                    ),
+                );
             }
         }
 
@@ -313,26 +313,26 @@ impl NftablesDiagnostics {
         // Check sysctl settings for forwarding
         let output = Command::new("sysctl").arg("net.ipv4.ip_forward").output();
 
-        if let Ok(output) = output {
-            if output.status.success() {
-                let value = String::from_utf8_lossy(&output.stdout);
-                if value.contains("= 1") {
-                    results.push(DiagnosticResult::new(
-                        DiagnosticLevel::Info,
-                        "IP forwarding enabled",
-                        "net.ipv4.ip_forward = 1",
-                    ));
-                } else {
-                    results.push(
-                        DiagnosticResult::new(
-                            DiagnosticLevel::Error,
-                            "IP forwarding disabled",
-                            "net.ipv4.ip_forward = 0 - routing will not work",
-                        )
-                        .with_suggestion("Enable IP forwarding for NAT and routing to work")
-                        .with_command("sudo sysctl -w net.ipv4.ip_forward=1"),
-                    );
-                }
+        if let Ok(output) = output
+            && output.status.success()
+        {
+            let value = String::from_utf8_lossy(&output.stdout);
+            if value.contains("= 1") {
+                results.push(DiagnosticResult::new(
+                    DiagnosticLevel::Info,
+                    "IP forwarding enabled",
+                    "net.ipv4.ip_forward = 1",
+                ));
+            } else {
+                results.push(
+                    DiagnosticResult::new(
+                        DiagnosticLevel::Error,
+                        "IP forwarding disabled",
+                        "net.ipv4.ip_forward = 0 - routing will not work",
+                    )
+                    .with_suggestion("Enable IP forwarding for NAT and routing to work")
+                    .with_command("sudo sysctl -w net.ipv4.ip_forward=1"),
+                );
             }
         }
 
@@ -341,15 +341,15 @@ impl NftablesDiagnostics {
             .arg("net.bridge.bridge-nf-call-iptables")
             .output();
 
-        if let Ok(output) = output {
-            if output.status.success() {
-                let value = String::from_utf8_lossy(&output.stdout);
-                results.push(DiagnosticResult::new(
-                    DiagnosticLevel::Info,
-                    "Bridge netfilter setting",
-                    value.trim().to_string(),
-                ));
-            }
+        if let Ok(output) = output
+            && output.status.success()
+        {
+            let value = String::from_utf8_lossy(&output.stdout);
+            results.push(DiagnosticResult::new(
+                DiagnosticLevel::Info,
+                "Bridge netfilter setting",
+                value.trim().to_string(),
+            ));
         }
 
         Ok(results)

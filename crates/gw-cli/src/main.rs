@@ -1,10 +1,9 @@
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 use gw_core::rollback;
 use gw_core::{ExecutionContext, Plan, PlanAction, Topology, nft_config_for_table};
 use gw_dhcpdns::DnsmasqManager;
 use gw_nft::NftManager;
 use gw_nl::{AddressManager, BridgeManager};
-use tracing_subscriber;
 
 #[derive(Parser)]
 #[command(name = "gwarden")]
@@ -48,25 +47,35 @@ enum Commands {
         #[command(subcommand)]
         action: Option<DoctorAction>,
     },
+    /// Maintainer documentation helpers
+    #[command(hide = true)]
+    Docs {
+        #[command(subcommand)]
+        action: DocsAction,
+    },
 }
 
 #[derive(Subcommand)]
 enum NetAction {
     /// Show planned changes without applying
     Plan {
-        #[arg(short, long, default_value = "ghostnet.yaml")]
+        #[arg(short, long, default_value = "ghostnet.toml")]
         file: String,
     },
     /// Apply network configuration
     Apply {
-        #[arg(short, long, default_value = "ghostnet.yaml")]
+        #[arg(short, long, default_value = "ghostnet.toml")]
         file: String,
+        /// Execute changes on the host; without this flag apply is a dry run
         #[arg(long)]
         commit: bool,
+        /// Auto-rollback window in seconds; press ENTER to confirm, 0 disables the wait
         #[arg(long, default_value = "30")]
         confirm: u64,
+        /// host:port to probe for connectivity; rollback runs if it is unreachable
         #[arg(long)]
         probe: Option<String>,
+        /// Timeout in seconds for the connectivity probe
         #[arg(long, default_value = "3")]
         probe_timeout: u64,
     },
@@ -74,15 +83,30 @@ enum NetAction {
     Status,
     /// Compare desired nftables rules with live system
     Diff {
-        #[arg(short, long, default_value = "ghostnet.yaml")]
+        #[arg(short, long, default_value = "ghostnet.toml")]
         file: String,
+        /// Only diff nftables tables (or networks) matching this name
         #[arg(long)]
         table: Option<String>,
     },
     /// Roll back the last applied configuration snapshot
     Rollback {
+        /// Execute the rollback; without this flag only a preview is printed
         #[arg(long)]
         execute: bool,
+    },
+    /// Show the persisted apply state from the last commit
+    State {
+        /// Emit the apply state as JSON instead of a human summary
+        #[arg(long)]
+        json: bool,
+    },
+    /// Clear the persisted apply state (does not touch live resources)
+    #[command(name = "state-clear")]
+    StateClear {
+        /// Required acknowledgement; clearing state is irreversible
+        #[arg(long)]
+        confirm: bool,
     },
 }
 
@@ -131,7 +155,7 @@ enum PolicyAction {
         net: String,
         #[arg(long)]
         profile: String,
-        #[arg(long, default_value = "ghostnet.yaml")]
+        #[arg(long, default_value = "ghostnet.toml")]
         file: String,
     },
     /// List available policy profiles
@@ -159,6 +183,15 @@ enum DoctorAction {
     All,
 }
 
+#[derive(Subcommand)]
+enum DocsAction {
+    /// Generate Markdown command reference from clap metadata
+    Commands {
+        #[arg(short, long, default_value = "docs/reference/commands.md")]
+        output: String,
+    },
+}
+
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
@@ -180,9 +213,81 @@ fn main() -> anyhow::Result<()> {
             tokio::runtime::Runtime::new()?
                 .block_on(async { handle_doctor_action(action).await })?;
         }
+        Commands::Docs { action } => handle_docs_action(action)?,
     }
 
     Ok(())
+}
+
+fn handle_docs_action(action: DocsAction) -> anyhow::Result<()> {
+    match action {
+        DocsAction::Commands { output } => {
+            let markdown = generate_command_reference();
+            std::fs::write(&output, markdown)?;
+            println!("Wrote command reference to {}", output);
+        }
+    }
+    Ok(())
+}
+
+fn render_help_block(path: &str) -> Option<String> {
+    let mut command = Cli::command();
+    let mut current = &mut command;
+
+    for segment in path.split_whitespace().skip(1) {
+        current = current.find_subcommand_mut(segment)?;
+    }
+
+    let mut help = Vec::new();
+    current.write_long_help(&mut help).ok()?;
+    let help = String::from_utf8(help).ok()?;
+
+    Some(format!("### `{}`\n\n```text\n{}\n```\n", path, help.trim()))
+}
+
+fn generate_command_reference() -> String {
+    let commands = [
+        "gwarden",
+        "gwarden net",
+        "gwarden net plan",
+        "gwarden net apply",
+        "gwarden net status",
+        "gwarden net diff",
+        "gwarden net rollback",
+        "gwarden net state",
+        "gwarden net state-clear",
+        "gwarden vm",
+        "gwarden vm attach",
+        "gwarden vm list",
+        "gwarden forward",
+        "gwarden forward add",
+        "gwarden forward remove",
+        "gwarden forward list",
+        "gwarden policy",
+        "gwarden policy set",
+        "gwarden policy list",
+        "gwarden metrics",
+        "gwarden metrics serve",
+        "gwarden doctor",
+        "gwarden doctor nftables",
+        "gwarden doctor docker",
+        "gwarden doctor bridges",
+        "gwarden doctor all",
+        "gwarden tui",
+    ];
+
+    let mut markdown = String::from(
+        "# Commands\n\nThis page is generated from the `gwarden` clap command metadata.\n\n",
+    );
+
+    for command in commands {
+        if let Some(block) = render_help_block(command) {
+            markdown.push_str(&block);
+            markdown.push('\n');
+        }
+    }
+
+    markdown
 }
 
 fn handle_net_action(action: NetAction) -> anyhow::Result<()> {
@@ -215,7 +320,79 @@ fn handle_net_action(action: NetAction) -> anyhow::Result<()> {
             tokio::runtime::Runtime::new()?
                 .block_on(async { run_snapshot_rollback(execute).await })?;
         }
+        NetAction::State { json } => {
+            show_apply_state(json)?;
+        }
+        NetAction::StateClear { confirm } => {
+            clear_apply_state(confirm)?;
+        }
     }
+    Ok(())
+}
+
+fn show_apply_state(json: bool) -> anyhow::Result<()> {
+    let state_path = gw_core::default_apply_state_path()?;
+    let Some(state) = gw_core::ApplyState::load_from(&state_path)? else {
+        println!("ℹ️  No apply state found at {}", state_path.display());
+        return Ok(());
+    };
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&state)?);
+        return Ok(());
+    }
+
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+    let applied_at = UNIX_EPOCH + Duration::from_secs(state.created_at);
+    let age_secs = SystemTime::now()
+        .duration_since(applied_at)
+        .unwrap_or_else(|_| Duration::from_secs(0))
+        .as_secs();
+
+    println!("📦 Apply state {}", state.transaction_id);
+    println!("📁 {}", state_path.display());
+    println!("⏱️  Applied {}s ago", age_secs);
+    println!("\nOwned resources ({}):", state.owned_resources.len());
+    if state.owned_resources.is_empty() {
+        println!("  (none)");
+    }
+    for resource in &state.owned_resources {
+        println!("  - {}", describe_owned_resource(resource));
+    }
+
+    Ok(())
+}
+
+fn describe_owned_resource(resource: &gw_core::OwnedResource) -> String {
+    use gw_core::OwnedResource;
+    match resource {
+        OwnedResource::Bridge { name } => format!("bridge {}", name),
+        OwnedResource::Address { iface, addr } => format!("address {} on {}", addr, iface),
+        OwnedResource::NftTable { table } => format!("nftables table {}", table),
+        OwnedResource::DnsmasqConfig { path } => format!("dnsmasq config {}", path),
+        OwnedResource::Vlan { name } => format!("VLAN {}", name),
+    }
+}
+
+fn clear_apply_state(confirm: bool) -> anyhow::Result<()> {
+    let state_path = gw_core::default_apply_state_path()?;
+
+    if !state_path.exists() {
+        println!("ℹ️  No apply state found at {}", state_path.display());
+        return Ok(());
+    }
+
+    if !confirm {
+        println!(
+            "⚠️  This clears persisted apply state at {} but does not touch live resources.",
+            state_path.display()
+        );
+        println!("    Re-run with '--confirm' to delete it.");
+        return Ok(());
+    }
+
+    std::fs::remove_file(&state_path)?;
+    println!("🧹 Cleared apply state at {}", state_path.display());
     Ok(())
 }
 
@@ -392,9 +569,30 @@ async fn apply_network_config(
 
     println!("\n✅ Configuration applied successfully!");
 
-    let record = context.to_rollback_record();
+    // Share one transaction ID across the rollback snapshot and apply state so
+    // `gwarden net rollback` and `gwarden net state` reference the same apply.
+    let transaction_id = gw_core::new_transaction_id();
+
+    let record = context.to_rollback_record(transaction_id.clone());
     let record_path = rollback::save_record(&record)?;
-    println!("💾 Saved rollback snapshot to {}", record_path.display());
+    println!(
+        "💾 Saved rollback snapshot {} to {}",
+        transaction_id,
+        record_path.display()
+    );
+
+    let apply_state = gw_core::ApplyState::from_plan(
+        transaction_id.clone(),
+        plan.clone(),
+        &context.actions_completed,
+    );
+    let state_path = gw_core::default_apply_state_path()?;
+    apply_state.save_to(&state_path)?;
+    println!(
+        "💾 Saved apply state {} to {}",
+        apply_state.transaction_id,
+        state_path.display()
+    );
 
     let rollback_mgr = RollbackManager::new(confirm);
 
@@ -413,7 +611,15 @@ async fn apply_network_config(
             println!("✅ Connectivity probe succeeded");
         } else {
             println!("❌ Connectivity probe failed; rolling back changes");
-            execute_rollback(&context, &bridge_mgr, &addr_mgr, &nft_mgr, &dnsmasq_mgr).await?;
+            execute_rollback(
+                &context,
+                &bridge_mgr,
+                &addr_mgr,
+                &nft_mgr,
+                &dnsmasq_mgr,
+                &vlan_mgr,
+            )
+            .await?;
             rollback::clear_record()?;
             anyhow::bail!("Connectivity probe failed for {}", target);
         }
@@ -428,7 +634,15 @@ async fn apply_network_config(
             println!("\n🔄 Rolling back configuration...");
 
             // Execute rollback using managers
-            execute_rollback(&context, &bridge_mgr, &addr_mgr, &nft_mgr, &dnsmasq_mgr).await?;
+            execute_rollback(
+                &context,
+                &bridge_mgr,
+                &addr_mgr,
+                &nft_mgr,
+                &dnsmasq_mgr,
+                &vlan_mgr,
+            )
+            .await?;
             rollback::clear_record()?;
 
             anyhow::bail!("Configuration rolled back due to timeout");
@@ -470,16 +684,16 @@ async fn diff_network_config(file: &str, table_filter: Option<&str>) -> anyhow::
 
     for action in &plan.actions {
         if let PlanAction::CreateNftRuleset { table, .. } = action {
-            if let Some(filter) = filter_owned.as_deref() {
-                if !table_matches_filter(filter, table) {
-                    // Allow matching on network name as well
-                    if let Some(config) = nft_config_for_table(&topology, table) {
-                        if !table_matches_filter(filter, &config.network_name) {
-                            continue;
-                        }
-                    } else {
+            if let Some(filter) = filter_owned.as_deref()
+                && !table_matches_filter(filter, table)
+            {
+                // Allow matching on network name as well
+                if let Some(config) = nft_config_for_table(&topology, table) {
+                    if !table_matches_filter(filter, &config.network_name) {
                         continue;
                     }
+                } else {
+                    continue;
                 }
             }
 
@@ -534,6 +748,7 @@ async fn execute_rollback(
     addr_mgr: &AddressManager,
     nft_mgr: &NftManager,
     dnsmasq_mgr: &DnsmasqManager,
+    vlan_mgr: &gw_nl::VlanManager,
 ) -> anyhow::Result<()> {
     use gw_core::RollbackOp;
 
@@ -552,7 +767,7 @@ async fn execute_rollback(
                 }
             }
             RollbackOp::RestoreNft { table, snapshot } => {
-                let snapshot_ref = snapshot.as_ref().map(|s| s.as_str());
+                let snapshot_ref = snapshot.as_deref();
                 let action_desc = if snapshot_ref.is_some() {
                     "Restoring"
                 } else {
@@ -578,8 +793,7 @@ async fn execute_rollback(
             }
             RollbackOp::DeleteVlan { name } => {
                 println!("  ⏪ Deleting VLAN: {}", name);
-                // VLANs are deleted when the bridge is deleted or can be deleted explicitly
-                if let Err(e) = bridge_mgr.delete_bridge(&name).await {
+                if let Err(e) = vlan_mgr.delete_vlan(&name).await {
                     eprintln!("     ⚠️  Failed to delete VLAN: {}", e);
                 }
             }
@@ -593,15 +807,15 @@ async fn execute_rollback(
 // Helper to extract gateway IP from topology
 fn extract_gateway_ip(cidr: &str, topology: &Topology) -> anyhow::Result<String> {
     // Find the network that uses this CIDR and get its gateway IP
-    for (_name, network) in &topology.networks {
-        if let gw_core::Network::Routed(routed) = network {
-            if routed.cidr == cidr {
-                return Ok(format!(
-                    "{}/{}",
-                    routed.gw_ip,
-                    cidr.split('/').nth(1).unwrap()
-                ));
-            }
+    for network in topology.networks.values() {
+        if let gw_core::Network::Routed(routed) = network
+            && routed.cidr == cidr
+        {
+            return Ok(format!(
+                "{}/{}",
+                routed.gw_ip,
+                cidr.split('/').nth(1).unwrap()
+            ));
         }
     }
     anyhow::bail!("Could not find gateway IP for CIDR {}", cidr)
@@ -668,22 +882,21 @@ fn get_dns_config(topology: &Topology, config_path: &str) -> anyhow::Result<Opti
     // Extract network name from config path
     // e.g., "/etc/dnsmasq.d/gw-nat_dev.conf" -> "nat_dev"
     for (name, network) in &topology.networks {
-        if config_path.contains(name) {
-            if let gw_core::Network::Routed(routed) = network {
-                if routed.dhcp {
-                    let zones = if let Some(dns) = &routed.dns {
-                        dns.zones.clone()
-                    } else {
-                        vec![]
-                    };
+        if config_path.contains(name)
+            && let gw_core::Network::Routed(routed) = network
+            && routed.dhcp
+        {
+            let zones = if let Some(dns) = &routed.dns {
+                dns.zones.clone()
+            } else {
+                vec![]
+            };
 
-                    return Ok(Some(DnsConfig {
-                        bridge: format!("br-{}", name),
-                        cidr: routed.cidr.clone(),
-                        zones,
-                    }));
-                }
-            }
+            return Ok(Some(DnsConfig {
+                bridge: format!("br-{}", name),
+                cidr: routed.cidr.clone(),
+                zones,
+            }));
         }
     }
     Ok(None)
@@ -711,16 +924,30 @@ async fn run_snapshot_rollback(execute: bool) -> anyhow::Result<()> {
         .unwrap_or_else(|_| Duration::from_secs(0))
         .as_secs();
 
+    let transaction_label = if record.transaction_id.is_empty() {
+        "(legacy snapshot)".to_string()
+    } else {
+        record.transaction_id.clone()
+    };
     println!(
-        "📦 Rollback snapshot ({} actions) saved {}s ago",
+        "📦 Rollback snapshot {} ({} actions) saved {}s ago",
+        transaction_label,
         record.actions.len(),
         age_secs
     );
     println!("📁 {}", record_path.display());
 
-    if let Some(plan) = &record.plan {
-        println!();
-        plan.display();
+    // Preview the exact rollback operations, in execution order, before running them.
+    let context = ExecutionContext::from_rollback_record(record);
+    let operations = context.rollback_operations();
+    if operations.is_empty() {
+        println!("\nℹ️  Snapshot has no reversible operations.");
+        return Ok(());
+    }
+
+    println!("\nThe following operations will run, in order:");
+    for op in &operations {
+        println!("  - {}", describe_rollback_op(op));
     }
 
     if !execute {
@@ -734,14 +961,41 @@ async fn run_snapshot_rollback(execute: bool) -> anyhow::Result<()> {
     let addr_mgr = AddressManager::new().await?;
     let nft_mgr = NftManager::new();
     let dnsmasq_mgr = DnsmasqManager::new();
+    let vlan_mgr = gw_nl::VlanManager::new().await?;
 
-    let context = ExecutionContext::from_rollback_record(record);
-
-    execute_rollback(&context, &bridge_mgr, &addr_mgr, &nft_mgr, &dnsmasq_mgr).await?;
+    execute_rollback(
+        &context,
+        &bridge_mgr,
+        &addr_mgr,
+        &nft_mgr,
+        &dnsmasq_mgr,
+        &vlan_mgr,
+    )
+    .await?;
     rollback::clear_record()?;
     println!("✅ Snapshot rollback completed");
 
     Ok(())
+}
+
+/// Render a single rollback operation as a human-readable preview line.
+fn describe_rollback_op(op: &gw_core::RollbackOp) -> String {
+    use gw_core::RollbackOp;
+    match op {
+        RollbackOp::DeleteBridge { name } => format!("delete bridge {}", name),
+        RollbackOp::RemoveAddress { iface, addr } => {
+            format!("remove address {} from {}", addr, iface)
+        }
+        RollbackOp::RestoreNft { table, snapshot } => {
+            if snapshot.is_some() {
+                format!("restore nftables table {}", table)
+            } else {
+                format!("delete nftables table {}", table)
+            }
+        }
+        RollbackOp::DeleteDnsmasqConfig { path } => format!("delete dnsmasq config {}", path),
+        RollbackOp::DeleteVlan { name } => format!("delete VLAN {}", name),
+    }
 }
 
 fn handle_vm_action(action: VmAction) -> anyhow::Result<()> {
@@ -800,16 +1054,27 @@ async fn attach_vm_to_network(vm: &str, bridge: &str, tap: Option<&str>) -> anyh
     Ok(())
 }
 
+fn default_topology_path() -> std::path::PathBuf {
+    for candidate in ["ghostnet.toml", "ghostnet.yaml", "ghostnet.yml"] {
+        let path = std::path::PathBuf::from(candidate);
+        if path.exists() {
+            return path;
+        }
+    }
+
+    std::path::PathBuf::from("ghostnet.toml")
+}
+
 fn handle_forward_action(action: ForwardAction) -> anyhow::Result<()> {
     use gw_core::Topology;
 
-    let topology_path = std::path::Path::new("ghostnet.yaml");
+    let topology_path = default_topology_path();
 
     match action {
         ForwardAction::Add { net, public, dst } => {
             // Load existing topology
             let mut topology = if topology_path.exists() {
-                Topology::from_file(topology_path)?
+                Topology::from_file(&topology_path)?
             } else {
                 anyhow::bail!("Topology file not found: {}", topology_path.display());
             };
@@ -833,9 +1098,7 @@ fn handle_forward_action(action: ForwardAction) -> anyhow::Result<()> {
                         dst: dst.clone(),
                     });
 
-                    // Save topology
-                    let yaml = serde_yaml::to_string(&topology)?;
-                    std::fs::write(topology_path, yaml)?;
+                    topology.write_file(&topology_path)?;
 
                     println!("✅ Added port forward: {} -> {}", public, dst);
                     println!("   Run 'gwarden net apply --commit' to activate");
@@ -851,7 +1114,7 @@ fn handle_forward_action(action: ForwardAction) -> anyhow::Result<()> {
         ForwardAction::Remove { net, public } => {
             // Load existing topology
             let mut topology = if topology_path.exists() {
-                Topology::from_file(topology_path)?
+                Topology::from_file(&topology_path)?
             } else {
                 anyhow::bail!("Topology file not found: {}", topology_path.display());
             };
@@ -872,9 +1135,7 @@ fn handle_forward_action(action: ForwardAction) -> anyhow::Result<()> {
                         anyhow::bail!("Forward for '{}' not found", public);
                     }
 
-                    // Save topology
-                    let yaml = serde_yaml::to_string(&topology)?;
-                    std::fs::write(topology_path, yaml)?;
+                    topology.write_file(&topology_path)?;
 
                     println!("✅ Removed port forward: {}", public);
                     println!("   Run 'gwarden net apply --commit' to activate");
@@ -887,7 +1148,7 @@ fn handle_forward_action(action: ForwardAction) -> anyhow::Result<()> {
         ForwardAction::List => {
             // Load existing topology
             let topology = if topology_path.exists() {
-                Topology::from_file(topology_path)?
+                Topology::from_file(&topology_path)?
             } else {
                 anyhow::bail!("Topology file not found: {}", topology_path.display());
             };
@@ -896,15 +1157,15 @@ fn handle_forward_action(action: ForwardAction) -> anyhow::Result<()> {
             let mut found_any = false;
 
             for (net_name, network) in &topology.networks {
-                if let gw_core::Network::Routed(routed) = network {
-                    if !routed.forwards.is_empty() {
-                        found_any = true;
-                        println!("Network: {}", net_name);
-                        for forward in &routed.forwards {
-                            println!("  {} -> {}", forward.public, forward.dst);
-                        }
-                        println!();
+                if let gw_core::Network::Routed(routed) = network
+                    && !routed.forwards.is_empty()
+                {
+                    found_any = true;
+                    println!("Network: {}", net_name);
+                    for forward in &routed.forwards {
+                        println!("  {} -> {}", forward.public, forward.dst);
                     }
+                    println!();
                 }
             }
 
@@ -959,8 +1220,7 @@ fn handle_policy_action(action: PolicyAction) -> anyhow::Result<()> {
                 }
             }
 
-            let yaml = serde_yaml::to_string(&topology)?;
-            std::fs::write(path, yaml)?;
+            topology.write_file(path)?;
 
             match profile_value {
                 Some(name) => {

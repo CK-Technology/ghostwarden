@@ -11,5 +11,4 @@ anyhow.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 rtnetlink.workspace = true
-netlink-packet-route.workspace = true
 futures = "0.3"

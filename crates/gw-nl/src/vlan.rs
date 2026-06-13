@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use rtnetlink::{Handle, new_connection};
+use rtnetlink::{Handle, LinkUnspec, LinkVlan, new_connection};
 
 pub struct VlanManager {
     handle: Handle,
@@ -31,8 +31,7 @@ impl VlanManager {
         // Create VLAN link
         self.handle
             .link()
-            .add()
-            .vlan(vlan_name.to_string(), parent_index, vlan_id)
+            .add(LinkVlan::new(vlan_name, parent_index, vlan_id).build())
             .execute()
             .await
             .context(format!("Failed to create VLAN {}", vlan_name))?;
@@ -43,8 +42,7 @@ impl VlanManager {
         let vlan_index = self.get_link_by_name(vlan_name).await?;
         self.handle
             .link()
-            .set(vlan_index)
-            .up()
+            .set(LinkUnspec::new_with_index(vlan_index).up().build())
             .execute()
             .await
             .context(format!("Failed to bring up VLAN {}", vlan_name))?;
@@ -76,8 +74,11 @@ impl VlanManager {
         // Set the VLAN's controller to the bridge
         self.handle
             .link()
-            .set(vlan_index)
-            .controller(bridge_index)
+            .set(
+                LinkUnspec::new_with_index(vlan_index)
+                    .controller(bridge_index)
+                    .build(),
+            )
             .execute()
             .await
             .context(format!(

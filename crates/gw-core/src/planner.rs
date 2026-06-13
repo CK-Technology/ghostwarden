@@ -2,12 +2,12 @@ use crate::topology::Topology;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Plan {
     pub actions: Vec<Action>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Action {
     CreateBridge {
         name: String,
@@ -130,21 +130,21 @@ impl Plan {
                 }
                 crate::topology::Network::Bridge(bridge) => {
                     // Create VLAN if specified
-                    if let Some(vlan_id) = bridge.vlan {
-                        if let Some(uplink) = topology.interfaces.get("uplink") {
-                            let vlan_name = format!("{}.{}", uplink, vlan_id);
-                            plan.actions.push(Action::CreateVlan {
-                                parent: uplink.clone(),
-                                vlan_id,
-                                name: vlan_name.clone(),
-                            });
+                    if let Some(vlan_id) = bridge.vlan
+                        && let Some(uplink) = topology.interfaces.get("uplink")
+                    {
+                        let vlan_name = format!("{}.{}", uplink, vlan_id);
+                        plan.actions.push(Action::CreateVlan {
+                            parent: uplink.clone(),
+                            vlan_id,
+                            name: vlan_name.clone(),
+                        });
 
-                            // Attach VLAN to bridge
-                            plan.actions.push(Action::AttachVlanToBridge {
-                                vlan: vlan_name,
-                                bridge: bridge.iface.clone(),
-                            });
-                        }
+                        // Attach VLAN to bridge
+                        plan.actions.push(Action::AttachVlanToBridge {
+                            vlan: vlan_name,
+                            bridge: bridge.iface.clone(),
+                        });
                     }
 
                     plan.actions.push(Action::CreateBridge {

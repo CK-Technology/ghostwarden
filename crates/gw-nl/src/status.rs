@@ -16,7 +16,7 @@ impl StatusCollector {
 
     pub async fn collect_bridge_status(&self) -> Result<Vec<BridgeStatus>> {
         use futures::stream::TryStreamExt;
-        use netlink_packet_route::link::LinkAttribute;
+        use rtnetlink::packet_route::link::{LinkAttribute, LinkFlags};
 
         let mut bridges = vec![];
         let mut links = self.handle.link().get().execute();
@@ -39,11 +39,7 @@ impl StatusCollector {
 
                 if is_bridge || name.starts_with("br-") {
                     // Check if link is up by looking at flags
-                    let state = if link
-                        .header
-                        .flags
-                        .contains(&netlink_packet_route::link::LinkFlag::Up)
-                    {
+                    let state = if link.header.flags.contains(LinkFlags::Up) {
                         "UP"
                     } else {
                         "DOWN"
@@ -68,7 +64,7 @@ impl StatusCollector {
 
     async fn get_addresses_for_link(&self, link_index: u32) -> Result<Vec<String>> {
         use futures::stream::TryStreamExt;
-        use netlink_packet_route::address::AddressAttribute;
+        use rtnetlink::packet_route::address::AddressAttribute;
 
         let mut addresses = vec![];
         let mut addrs = self
@@ -81,8 +77,7 @@ impl StatusCollector {
         while let Some(addr) = addrs.try_next().await? {
             for attr in &addr.attributes {
                 if let AddressAttribute::Address(ip) = attr {
-                    let addr_str =
-                        format!("{}/{}", std::net::IpAddr::from(*ip), addr.header.prefix_len);
+                    let addr_str = format!("{}/{}", (*ip), addr.header.prefix_len);
                     addresses.push(addr_str);
                 }
             }

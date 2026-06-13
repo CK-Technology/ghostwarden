@@ -62,12 +62,24 @@ pub struct PortForward {
 
 impl Topology {
     pub fn from_yaml(yaml: &str) -> anyhow::Result<Self> {
-        Ok(serde_yaml::from_str(yaml)?)
+        crate::config_format::from_str(yaml, crate::config_format::ConfigFormat::Yaml)
+    }
+
+    pub fn from_toml(toml: &str) -> anyhow::Result<Self> {
+        crate::config_format::from_str(toml, crate::config_format::ConfigFormat::Toml)
     }
 
     pub fn from_file(path: &std::path::Path) -> anyhow::Result<Self> {
         let content = std::fs::read_to_string(path)?;
-        Self::from_yaml(&content)
+        let format = crate::config_format::ConfigFormat::from_path(path)?;
+        crate::config_format::from_str(&content, format)
+    }
+
+    pub fn write_file(&self, path: &std::path::Path) -> anyhow::Result<()> {
+        let format = crate::config_format::ConfigFormat::from_path(path)?;
+        let content = crate::config_format::to_string(self, format)?;
+        std::fs::write(path, content)?;
+        Ok(())
     }
 }
 

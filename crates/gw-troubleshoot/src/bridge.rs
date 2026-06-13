@@ -199,15 +199,15 @@ impl BridgeDiagnostics {
 
             let mut has_ipv4 = false;
             for line in addr_output.lines() {
-                if line.trim().starts_with("inet ") {
-                    if let Some(ip) = line.trim().split_whitespace().nth(1) {
-                        results.push(DiagnosticResult::new(
-                            DiagnosticLevel::Info,
-                            format!("Bridge {} IPv4", bridge),
-                            format!("IP: {}", ip),
-                        ));
-                        has_ipv4 = true;
-                    }
+                if line.trim().starts_with("inet ")
+                    && let Some(ip) = line.split_whitespace().nth(1)
+                {
+                    results.push(DiagnosticResult::new(
+                        DiagnosticLevel::Info,
+                        format!("Bridge {} IPv4", bridge),
+                        format!("IP: {}", ip),
+                    ));
+                    has_ipv4 = true;
                 }
             }
 

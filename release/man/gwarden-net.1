@@ -8,17 +8,26 @@ gwarden-net \- Network topology management
 Manage network topology including bridges, NAT, VLANs, and nftables rules.
 .SH COMMANDS
 .TP
-.B plan [\fIFILE\fR]
+.B plan [\-f \fIFILE\fR]
 Preview network changes without applying them. Validates topology and shows planned actions.
 .TP
-.B apply [\fIFILE\fR] [\-\-commit] [\-\-confirm \fISECONDS\fR]
+.B apply [\-f \fIFILE\fR] [\-\-commit] [\-\-confirm \fISECONDS\fR]
 Apply network configuration. Use \fB\-\-commit\fR to actually apply (otherwise dry-run). Use \fB\-\-confirm\fR to enable automatic rollback after timeout.
 .TP
 .B status
 Show current network status including bridges, nftables rules, and DHCP leases.
 .TP
-.B rollback
-Manually trigger rollback to previous configuration.
+.B diff [\fIFILE\fR]
+Compare desired nftables rules with the live system.
+.TP
+.B rollback [\-\-execute]
+Roll back the last applied snapshot. Without \fB\-\-execute\fR only a preview is printed.
+.TP
+.B state [\-\-json]
+Show the persisted apply state from the last commit. Use \fB\-\-json\fR for machine-readable output.
+.TP
+.B state-clear [\-\-confirm]
+Clear the persisted apply state. Requires \fB\-\-confirm\fR; does not touch live resources.
 .SH OPTIONS
 .TP
 .B \-\-commit
@@ -26,13 +35,19 @@ Actually apply changes (required for non-dry-run)
 .TP
 .B \-\-confirm \fISECONDS\fR
 Enable rollback timeout. If not confirmed within \fISECONDS\fR, changes are rolled back automatically.
+.TP
+.B \-\-execute
+For \fBrollback\fR, perform the rollback instead of previewing it.
+.TP
+.B \-\-json
+For \fBstate\fR, emit the apply state as JSON.
 .SH EXAMPLES
 .TP
 Preview changes:
-.B gwarden net plan ghostnet.yaml
+.B gwarden net plan \-f ghostnet.toml
 .TP
 Apply with 30-second rollback window:
-.B sudo gwarden net apply \-\-commit \-\-confirm 30s ghostnet.yaml
+.B sudo gwarden net apply \-f ghostnet.toml \-\-commit \-\-confirm 30
 .TP
 Check status:
 .B gwarden net status
@@ -41,7 +56,7 @@ Manual rollback:
 .B sudo gwarden net rollback
 .SH FILES
 .TP
-.I /etc/ghostwarden/ghostnet.yaml
+.I /etc/gwarden/ghostnet.toml
 Default topology file
 .SH SEE ALSO
 .BR gwarden (1),
