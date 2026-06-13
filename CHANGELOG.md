@@ -3,7 +3,7 @@
 All notable changes to Ghostwarden are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased] - 2026-06-13
+## 2026-06-13
 
 ### Added
 - `gwarden net state` and `gwarden net state-clear` commands for inspecting and
